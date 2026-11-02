@@ -85,6 +85,12 @@ recipe. In that case, `nix-diff` prints nothing and the store paths are equal.
 **If it fails:**
 
 - After the hash, read the end of the log with `nix log`.
+- `makeinfo: not found`, then `Error 127` at `doc/bfd.info`: the build
+  regenerates the inputs of the bfd manual, so `make` rebuilds it. Add
+  `texinfo` to `nativeBuildInputs`. LFS lists Texinfo as a host requirement,
+  so the LFS book never shows this failure.
+- `bad value ... for enable-default-hash-style option`: the `ld` configure
+  accepts only `sysv`, `gnu` or `both`. It runs late, after `bfd` builds.
 - Errors about `bool`, `true`, `false` or old-style function declarations:
   the host compiler is nixpkgs gcc 16.2, which uses C23 by default. Add
   `env.NIX_CFLAGS_COMPILE = "-std=gnu17";`.

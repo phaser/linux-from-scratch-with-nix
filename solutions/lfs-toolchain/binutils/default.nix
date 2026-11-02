@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchurl, triple }:
+{ lib, stdenv, fetchurl, texinfo, triple }:
 
 # Rung 1 — binutils for the target triple.
 #
@@ -17,6 +17,10 @@ stdenv.mkDerivation rec {
     url = "mirror://gnu/binutils/binutils-${version}.tar.xz";
     hash = lib.fakeHash; # build once, copy the `got:` hash
   };
+
+  # The build regenerates the bfd manual's .texi inputs, so make rebuilds
+  # bfd.info and needs makeinfo. LFS lists Texinfo as a host requirement.
+  nativeBuildInputs = [ texinfo ];
 
   dontAddPrefix = true;
   preConfigure = "mkdir -p build && cd build";
