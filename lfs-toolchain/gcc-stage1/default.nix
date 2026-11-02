@@ -10,6 +10,7 @@ stdenv.mkDerivation rec {
     };
 
     buildInputs = [ gmp mpfr libmpc isl ];
+    hardeningDisable = [ "format" ];
 
     dontAddPrefix = true;
     preConfigure = ''
