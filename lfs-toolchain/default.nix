@@ -16,7 +16,7 @@
 # The answer key for steps 1 to 3 is in ../solutions/lfs-toolchain/.
 
 let
-  inherit (pkgs) callPackage;
+  inherit (pkgs) callPackage linkFarm;
   triple = "aarch64-lfs-linux-gnu";
   
   binutils = callPackage ./binutils { inherit triple; };

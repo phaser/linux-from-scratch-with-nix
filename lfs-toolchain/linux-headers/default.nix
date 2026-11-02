@@ -6,7 +6,7 @@ stdenv.mkDerivation rec {
 
     src = fetchurl {
         url = "http://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${version}.tar.xz";
-        hash = lib.fakeHash;
+        hash = "sha256-saJWK+VuQq+z+EidTCp6xHKsIwmPHvHB5A2mAfVGJes=";
     };
 
     dontConfigure = true;
@@ -19,7 +19,7 @@ stdenv.mkDerivation rec {
     '';
 
     installPhase = ''
-        ruhHook preInstall
+        runHook preInstall
         find usr/include -type f ! -name '*.h' -delete
         mkdir -p $out/usr/include
         cp -r usr/include/. $out/usr/include
