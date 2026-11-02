@@ -1,6 +1,6 @@
 # Step 9 — `lfsStdenv`
 
-**File to write:** `bootstrap/stdenv.nix`
+**File to write:** `lfs-stdenv/default.nix`, attribute `lfsStdenv`
 
 A stdenv is a derivation that holds a shell, an `initialPath` of tools, a
 wrapped compiler and `setup.sh`. You build one with
@@ -38,13 +38,13 @@ genericStdenv {
 This uses the nixpkgs `wrapCCWith`, and those wrapper scripts run with the
 *host* bash and coreutils. That is a known leak. You remove it in step 11.
 
-You also need `nixpkgs` (the flake input) in `bootstrap/default.nix`. Pass it
-from `flake.nix`.
+The file needs `nixpkgs` (the flake input) and `temp`. Pass both from
+`flake.nix`.
 
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.lfsStdenv -o result-lfs-stdenv
+$ nix build .#lfsStdenv -o result-lfs-stdenv
 $ ls result-lfs-stdenv                             # setup (and nix-support)
 $ grep -o '/nix/store/[a-z0-9]*-lfs-temp-[a-z]*' result-lfs-stdenv/setup | sort -u
                                                    # the temp tools from initialPath

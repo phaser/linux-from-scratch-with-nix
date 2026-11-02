@@ -1,5 +1,8 @@
 # Step 11 — rebuild everything with itself
 
+**Files to write:** `lfs-final/<package>/default.nix` for each package, and
+`lfs-final/default.nix` (attributes `lfsStdenvFinal` and `helloFinal`)
+
 Your temporary tools were built by a cross compiler and are static. Rebuild
 them natively, with `lfsStdenv`, as normal dynamic Nix packages. Do it in the
 same order as nixpkgs, because each stage may only use the stage before it.
@@ -22,8 +25,8 @@ same order as nixpkgs, because each stage may only use the stage before it.
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.lfsStdenvFinal -o result-final-stdenv -L
-$ nix build .#packages.aarch64-linux.helloFinal -o result-final-hello -L
+$ nix build .#lfsStdenvFinal -o result-final-stdenv -L
+$ nix build .#helloFinal -o result-final-hello -L
 $ result-final-hello/bin/hello                     # Hello, world!
 $ $B/$T-readelf -l result-final-hello/bin/hello | grep interpreter    # ...-lfs-final-glibc-2.40/...
 $ LD_DEBUG=libs result-final-hello/bin/hello 2>&1 | grep -c 'search cache'    # 0

@@ -11,6 +11,13 @@
       system = "aarch64-linux";
       pkgs = import nixpkgs { inherit system; };
     in {
-      packages.${system} = import ./bootstrap { inherit pkgs; };
+      # legacyPackages (not packages) because it may nest: `.#solutions.binutils`.
+      # On an aarch64-linux machine, `nix build .#binutils` finds it here.
+      #
+      # Later parts of the book add lfs-temp, lfs-stdenv, lfs-final and
+      # lfs-distro to this set.
+      legacyPackages.${system} = import ./lfs-toolchain { inherit pkgs; } // {
+        solutions = import ./solutions/lfs-toolchain { inherit pkgs; };
+      };
     };
 }

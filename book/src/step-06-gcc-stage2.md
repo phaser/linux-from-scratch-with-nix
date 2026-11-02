@@ -1,11 +1,11 @@
 # Step 6 — gcc stage 2 (milestone 1)
 
-**File to write:** `bootstrap/gcc-stage2.nix`
+**File to write:** `lfs-toolchain/gcc-stage2/default.nix`, attribute `gccStage2`
 
 This is a full cross compiler: C and C++, linked against your glibc through the
 sysroot. It follows crosstool-ng's "final gcc" more than LFS.
 
-**Do:** copy `gcc-stage1.nix`, then change it:
+**Do:** copy your `lfs-toolchain/gcc-stage1/default.nix`, then change it:
 
 - `pname = "lfs-gcc-stage2"`.
 - Remove `--with-newlib`, `--without-headers`, `--disable-shared`,
@@ -28,7 +28,7 @@ EOF
 Then run the checks:
 
 ```console
-$ nix build .#packages.aarch64-linux.gccStage2 -o result-gcc2 -L    # about 20 to 40 minutes
+$ nix build .#gccStage2 -o result-gcc2 -L    # about 20 to 40 minutes
 $ $G2/$T-gcc -print-sysroot                       # the sysroot store path ($S)
 $ $G2/$T-gcc -print-file-name=libc.so             # $S/usr/lib/libc.so
 $ echo '#include <stdio.h>' | $G2/$T-gcc -E - | grep -m1 stdio.h    # a path inside $S
@@ -53,6 +53,10 @@ Read the two dynamic runs carefully. The same binary prints the host version or
 `2.40`, depending on which loader runs it. gcc embeds the standard loader path,
 not the sysroot path. On NixOS, `/tmp/ver` does not run at all, because NixOS
 has no `/lib/ld-linux-aarch64.so.1`.
+
+Then add the `toolchain` attribute to `lfs-toolchain/default.nix`: a
+`linkFarm` of all six components. `nix build .#toolchain` now builds the whole
+toolchain.
 
 **This is milestone 1:** a compiler you built, linking against a libc you
 built, producing a binary that runs.

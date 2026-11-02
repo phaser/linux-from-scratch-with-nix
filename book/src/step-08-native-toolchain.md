@@ -1,6 +1,7 @@
 # Step 8 — glibc for the store, native binutils, native gcc
 
-**File to write:** more attributes in `bootstrap/temp.nix`
+**Files to write:** `lfs-temp/glibc/`, `lfs-temp/binutils/` and `lfs-temp/gcc/`,
+each with a `default.nix`
 
 Step 4's glibc uses `/usr/lib` paths, which only work through a sysroot. A Nix
 stdenv has no sysroot: the cc-wrapper passes store paths to gcc. So you need a
@@ -20,7 +21,7 @@ second glibc with the Nix layout.
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.temp.glibc -o result-temp-glibc -L
+$ nix build .#temp.glibc -o result-temp-glibc -L
 $ cat result-temp-glibc/lib/libc.so                # GROUP ( /nix/store/...-lfs-temp-glibc-2.40/lib/libc.so.6 ... )
 $ result-temp-glibc/lib/ld-linux-aarch64.so.1 --version | head -1    # ... version 2.40.
 $ ls result-temp-glibc/include/{stdio.h,linux/types.h}               # both exist
@@ -63,7 +64,7 @@ them in step 9.
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.temp.gcc -o result-temp-gcc -L
+$ nix build .#temp.gcc -o result-temp-gcc -L
 $ result-temp-gcc/bin/gcc -v 2>&1 | grep -E '^(Target|Configured)'
                                                    # Target: aarch64-lfs-linux-gnu, --host=aarch64-lfs-linux-gnu
 $ file result-temp-gcc/bin/gcc $(result-temp-gcc/bin/gcc -print-prog-name=cc1)

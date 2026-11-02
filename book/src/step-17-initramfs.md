@@ -1,6 +1,6 @@
 # Step 17 — the initramfs and the first boot (milestone 3)
 
-**File to write:** an `initrd` attribute
+**File to write:** `lfs-distro/initrd/default.nix`, attribute `initrd`
 
 **Do:** use the nixpkgs helper `makeInitrd`. It copies the closure of each
 object into `/nix/store` and creates the symlinks.
@@ -21,7 +21,7 @@ initrd = pkgs.makeInitrd {
 **Verify the archive:**
 
 ```console
-$ nix build .#packages.aarch64-linux.initrd -o result-initrd
+$ nix build .#initrd -o result-initrd
 $ ls -lL result-initrd/initrd                      # a gzip file, tens of MB
 $ zcat result-initrd/initrd | result-busybox/bin/busybox cpio -t 2>/dev/null | grep -E '^(init|bin|etc|nix/store/[^/]*lfs-final-glibc[^/]*)$'
                                                    # init, bin, etc, and the glibc store path

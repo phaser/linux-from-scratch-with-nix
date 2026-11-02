@@ -1,6 +1,6 @@
 # Step 10 — the first package built by your stdenv
 
-**File to write:** a `hello` attribute
+**File to write:** `lfs-stdenv/hello/default.nix`, attribute `hello`
 
 **Do:** build GNU hello with `lfsStdenv.mkDerivation`. Use `lfsStdenv.fetchurlBoot`
 or `pkgs.fetchurl` for the source (a fixed-output derivation; both are fine).
@@ -8,7 +8,7 @@ or `pkgs.fetchurl` for the source (a fixed-output derivation; both are fine).
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.hello -o result-hello -L
+$ nix build .#hello -o result-hello -L
 $ result-hello/bin/hello                           # Hello, world!
 $ $B/$T-readelf -l result-hello/bin/hello | grep interpreter
                                                    # /nix/store/...-lfs-temp-glibc-2.40/lib/ld-linux-aarch64.so.1
@@ -16,7 +16,7 @@ $ $B/$T-readelf -d result-hello/bin/hello | grep RUNPATH
                                                    # the lfs-temp-glibc lib directory
 $ $B/$T-readelf -p .comment result-hello/bin/hello # GCC: (GCC) 14.2.0  (lfs-temp-gcc)
 $ nix path-info -r ./result-hello                  # hello + lfs-temp-glibc, nothing else
-$ nix-store -q --references $(nix eval --raw .#packages.aarch64-linux.hello.drvPath)
+$ nix-store -q --references $(nix eval --raw .#hello.drvPath)
                                                    # lfs-stdenv, lfs-temp-bash, the source, setup hooks:
                                                    # no nixpkgs gcc and no nixpkgs glibc
 $ LD_DEBUG=libs result-hello/bin/hello 2>&1 | grep -E 'search cache|trying file'

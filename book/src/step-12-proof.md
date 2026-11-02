@@ -15,7 +15,7 @@ $ nix path-info -r ./result-final-stdenv | grep -v -- '-lfs-final-' | grep -v --
 $ nix path-info -r ./result-final-hello            # hello + lfs-final-glibc
 
 # 4. Reproducible: build again and compare.
-$ nix build .#packages.aarch64-linux.helloFinal --rebuild
+$ nix build .#helloFinal --rebuild
                                                    # no "differs" message
 ```
 

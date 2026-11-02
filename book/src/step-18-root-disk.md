@@ -3,7 +3,7 @@
 An initramfs lives in RAM and is lost at power-off. A real root file system is
 on a disk.
 
-**File to write:** a `rootImage` attribute
+**File to write:** `lfs-distro/root-image/default.nix`, attribute `rootImage`
 
 **Do:** use the NixOS helper `nixos/lib/make-ext4-fs.nix`. It copies the
 closure of `storePaths` into the image, and `populateImageCommands` adds your
@@ -30,7 +30,7 @@ The kernel mounts `/dev` itself when the root is on a disk
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.rootImage -o result-root.img -L
+$ nix build .#rootImage -o result-root.img -L
 $ file -L result-root.img                          # Linux rev 1.0 ext4 filesystem data, ... volume name "lfs-root"
 $ install -m 644 result-root.img /tmp/root.img     # QEMU needs a writable copy
 $ qemu-system-aarch64 -M virt -accel kvm -cpu host -m 1024 -nographic \
