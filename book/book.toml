@@ -1,0 +1,8 @@
+[book]
+title = "my-linux-distro: a Linux bootstrap with Nix"
+authors = ["Cristian Bidea"]
+language = "en"
+src = "src"
+
+[output.html]
+git-repository-url = "https://github.com/phaser/my-linux-distro"

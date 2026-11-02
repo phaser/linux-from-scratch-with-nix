@@ -1,0 +1,35 @@
+# Summary
+
+[Introduction](introduction.md)
+
+- [Part 0 — The environment](part-0.md)
+  - [Step 0 — A Linux VM with Nix](step-00-vm.md)
+- [Part 1 — The cross toolchain (implemented)](part-1.md)
+  - [Step 1 — binutils](step-01-binutils.md)
+  - [Step 2 — gcc stage 1](step-02-gcc-stage1.md)
+  - [Step 3 — kernel headers](step-03-headers.md)
+- [Part 2 — libc and the full cross compiler](part-2.md)
+  - [Step 4 — glibc (FHS layout, for the sysroot)](step-04-glibc.md)
+  - [Step 5 — the sysroot](step-05-sysroot.md)
+  - [Step 6 — gcc stage 2 (milestone 1)](step-06-gcc-stage2.md)
+- [Part 3 — Leaving the host (way A)](part-3.md)
+  - [Step 7 — static temporary tools](step-07-temp-tools.md)
+  - [Step 8 — glibc for the store, native binutils, native gcc](step-08-native-toolchain.md)
+  - [Step 9 — `lfsStdenv`](step-09-lfs-stdenv.md)
+  - [Step 10 — the first package built by your stdenv](step-10-first-package.md)
+  - [Step 11 — rebuild everything with itself](step-11-rebuild.md)
+  - [Step 12 — the proof (milestone 2)](step-12-proof.md)
+- [Part 4 — A minimal root distro](part-4.md)
+  - [Step 13 — the rule and the layout (read, no build)](step-13-layout.md)
+  - [Step 14 — the kernel](step-14-kernel.md)
+  - [Step 15 — busybox, from the nixpkgs recipe](step-15-busybox.md)
+  - [Step 16 — the system tree](step-16-system-tree.md)
+  - [Step 17 — the initramfs and the first boot (milestone 3)](step-17-initramfs.md)
+  - [Step 18 — root on an ext4 disk](step-18-root-disk.md)
+  - [Step 19 — the system builds a program (milestone 4)](step-19-self-hosting.md)
+  - [Step 20 — the proof for the image](step-20-image-proof.md)
+
+---
+
+- [Appendix A — Debugging a build](appendix-debugging.md)
+- [Appendix B — Nix concepts](appendix-nix-concepts.md)
