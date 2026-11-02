@@ -12,6 +12,10 @@ stdenv.mkDerivation rec {
     buildInputs = [ gmp mpfr libmpc isl ];
     hardeningDisable = [ "format" ];
 
+    # The host g++ 16 defaults to C++20, where u8"" literals are char8_t.
+    # libcody needs C++17 or earlier. g++ 14 defaults to gnu++17.
+    env.CXXFLAGS = "-g -O2 -std=gnu++17";
+
     dontAddPrefix = true;
     preConfigure = ''
         export PATH=${binutils}/tools/bin:$PATH
@@ -26,13 +30,13 @@ stdenv.mkDerivation rec {
         "--with-ld=${binutils}/tools/bin/${triple}-ld"
         
         "--with-gmp-include=${lib.getDev gmp}/include"
-        "--with-gmp-libs=${lib.getLib gmp}/lib"
+        "--with-gmp-lib=${lib.getLib gmp}/lib"
         "--with-mpfr-include=${lib.getDev mpfr}/include"
-        "--with-mpfr-libs=${lib.getLib mpfr}/lib"
+        "--with-mpfr-lib=${lib.getLib mpfr}/lib"
         "--with-mpc-include=${lib.getDev libmpc}/include"
-        "--with-mpc-libs=${lib.getLib libmpc}/lib"
+        "--with-mpc-lib=${lib.getLib libmpc}/lib"
         "--with-isl-include=${lib.getDev isl}/include"
-        "--with-isl-libs=${lib.getLib isl}/lib"
+        "--with-isl-lib=${lib.getLib isl}/lib"
 
         "--with-newlib"
         "--without-headers"
@@ -46,7 +50,7 @@ stdenv.mkDerivation rec {
         "--disable-libquadmath"
         "--disable-libssp"
         "--disable-libvtv"
-        "--disable-libstccxx"
+        "--disable-libstdcxx"
         "--disable-bootstrap"
     ];
 
