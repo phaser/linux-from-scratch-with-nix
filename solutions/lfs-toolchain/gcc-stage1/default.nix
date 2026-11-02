@@ -26,6 +26,10 @@ stdenv.mkDerivation rec {
   # at the copies nixpkgs already provides. LFS does not use isl.
   buildInputs = [ gmp mpfr libmpc isl ];
 
+  # The cc-wrapper adds -Werror=format-security, and libcpp fails on it.
+  # nixpkgs disables the same flag for its own gcc.
+  hardeningDisable = [ "format" ];
+
   # Divergence from LFS: in LFS, binutils and gcc share the $LFS/tools
   # prefix, so gcc finds ${triple}-as, -ld, -ar and -ranlib there. Here
   # binutils is a separate store path, and stdenv puts only $pkg/bin on
@@ -37,6 +41,13 @@ stdenv.mkDerivation rec {
   dontAddPrefix = true;
   preConfigure = ''
     export PATH=${binutils}/tools/bin:$PATH
+    # The host g++ 16 defaults to C++20, where u8"" literals are char8_t, and
+    # libcody fails. g++ 14 defaults to gnu++17.
+    #   - Not CXXFLAGS: autoconf compiles with $CXX $CXXFLAGS, so the flag
+    #     overrides the -std=c++11 that the libcody configure check adds.
+    #   - Not env.CXX: the cc-wrapper setup hook exports CXX=g++ later.
+    #   - Not NIX_CFLAGS_COMPILE: that also goes to C files.
+    export CXX="g++ -std=gnu++17"
     mkdir -p build && cd build
   '';
   configureScript = "../configure";

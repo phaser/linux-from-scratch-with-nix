@@ -18,8 +18,11 @@
 let
   inherit (pkgs) callPackage;
   triple = "aarch64-lfs-linux-gnu";
+  
+  binutils = callPackage ./binutils { inherit triple; };
+  gccStage1 = callPackage ./gcc-stage1 { inherit triple binutils; };
 in
 {
-  binutils = callPackage ./binutils { inherit triple; };
+    inherit binutils gccStage1;
 }
 
