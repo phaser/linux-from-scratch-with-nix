@@ -1,6 +1,6 @@
 # Step 15 — busybox, from the nixpkgs recipe
 
-**File to write:** an attribute in `distro/default.nix`, pname `lfs-final-busybox`
+**File to write:** `lfs-distro/busybox/default.nix`, attribute `busybox`, pname `lfs-final-busybox`
 
 busybox gives you `init`, `mount`, `poweroff`, `getty` and about 300 other
 small tools. Here you use the nixpkgs *recipe* with *your* stdenv.
@@ -20,7 +20,7 @@ busybox = (pkgs.busybox.override { stdenv = lfsStdenvFinal; }).overrideAttrs {
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.busybox -o result-busybox -L
+$ nix build .#busybox -o result-busybox -L
 $ result-busybox/bin/busybox | head -1             # BusyBox v1.37.0 ...
 $ result-busybox/bin/busybox --list | wc -l        # about 300
 $ ls -l result-busybox/sbin/init                   # a symlink to ../bin/busybox

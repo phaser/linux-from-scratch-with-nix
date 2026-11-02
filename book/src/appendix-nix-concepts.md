@@ -22,10 +22,12 @@ Read: <https://nix.dev/tutorials/nix-language>.
 ## Flakes
 
 `flake.nix` declares `inputs` (here nixpkgs) and `outputs` (here
-`packages.aarch64-linux.*`). `nix shell nixpkgs#qemu` opens a shell with a
+`legacyPackages.aarch64-linux.*`). `nix shell nixpkgs#qemu` opens a shell with a
 package from the nixpkgs flake, without installing it. `flake.lock` pins each input to one revision and
-hash. `.#packages.aarch64-linux.binutils` is an *installable*: "this flake,
-that output". Read: <https://nix.dev/concepts/flakes> and
+hash. `.#binutils` is an *installable*: "this flake,
+that output". Nix looks for `packages.<system>.binutils`, then
+`legacyPackages.<system>.binutils`. Unlike `packages`, `legacyPackages` can
+nest, as in `.#solutions.binutils`. Read: <https://nix.dev/concepts/flakes> and
 `nix flake --help`.
 
 ## Evaluation and build

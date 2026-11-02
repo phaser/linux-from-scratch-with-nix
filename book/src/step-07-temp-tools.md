@@ -1,6 +1,7 @@
 # Step 7 — static temporary tools
 
-**File to write:** `bootstrap/temp.nix`
+**Files to write:** `lfs-temp/lib.nix` (the helper), `lfs-temp/<tool>/default.nix`
+for each tool, and `lfs-temp/default.nix`. Import it in `flake.nix` as `temp`.
 
 These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
 `initialPath`. The list matches `initialPath` in nixpkgs
@@ -40,13 +41,13 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
       `makeFlags = [ "CC=${triple}-gcc" "AR=${triple}-ar" "RANLIB=${triple}-ranlib" "PREFIX=$(out)" ];`)
    7. `patchelf` (C++; the fixup phase of every later stdenv needs it)
 
-3. Add a `tempTools` attribute: a `buildEnv` of all of them. Here `buildEnv` is
+3. Add a `tools` attribute to `lfs-temp/default.nix`: a `buildEnv` of all of them. Here `buildEnv` is
    correct, because nothing reads these files through a sysroot.
 
 **Verify each tool** (example for coreutils):
 
 ```console
-$ nix build .#packages.aarch64-linux.temp.coreutils -o result-temp-coreutils -L
+$ nix build .#temp.coreutils -o result-temp-coreutils -L
 $ file result-temp-coreutils/bin/ls                # ELF 64-bit LSB executable, ARM aarch64, statically linked
 $ result-temp-coreutils/bin/ls --version | head -1 # ls (GNU coreutils) <version>
 $ $B/$T-readelf -p .comment result-temp-coreutils/bin/ls    # GCC: (GCC) 14.2.0  (gcc stage 2)
@@ -56,7 +57,7 @@ $ nix path-info -r ./result-temp-coreutils         # ONE line: the tool itself
 **Verify all tools together:**
 
 ```console
-$ nix build .#packages.aarch64-linux.tempTools -o result-temp
+$ nix build .#temp.tools -o result-temp
 $ env -i PATH=$(readlink -f result-temp)/bin bash -c 'type -P ls sed grep make tar xz patchelf'
                                                    # every path is inside result-temp
 $ for f in result-temp/bin/*; do file -L $f; done | grep -vc 'statically linked'

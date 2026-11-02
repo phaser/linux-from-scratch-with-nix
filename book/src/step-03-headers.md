@@ -1,11 +1,50 @@
 # Step 3 — kernel headers
 
-**File:** `bootstrap/headers.nix`
+**File to write:** `lfs-toolchain/linux-headers/default.nix`, attribute `headers`
 
-**Do:**
+**Read first:** the LFS book, chapter 5, "Linux API Headers".
+
+glibc needs the shape of the kernel's system call interface. LFS installs the
+headers into `$LFS/usr/include`. Here they go to their own store path, and
+step 5 combines them with glibc.
+
+**Do:** write a derivation that meets these requirements.
+
+1. The file is a function of `{ lib, stdenv, fetchurl }`.
+2. The source is Linux **6.12** from `cdn.kernel.org`.
+3. It runs the same two `make` commands as LFS.
+4. It removes every file that is not a header, as LFS does.
+5. The headers install to `$out/usr/include`.
+
+<details>
+<summary>Hint 1: there is no configure script</summary>
+
+The kernel has no `./configure`. Look up `dontConfigure`.
+
+</details>
+
+<details>
+<summary>Hint 2: your own phases</summary>
+
+You replace `buildPhase` and `installPhase` with your own commands. A custom
+phase must call `runHook preBuild` and `runHook postBuild` (or `preInstall` and
+`postInstall`), so that hooks still run.
+
+</details>
+
+<details>
+<summary>Hint 3: the architecture</summary>
+
+The kernel build reads the architecture from `uname -m` when you do not set
+`ARCH`. In the VM, that gives `arm64`. Think about whether you want to depend on
+that, or set it.
+
+</details>
+
+**Build:**
 
 ```console
-$ nix build .#packages.aarch64-linux.headers -o result-headers -L
+$ nix build .#headers -o result-headers -L
 $ H=$PWD/result-headers/usr/include
 ```
 
@@ -28,10 +67,19 @@ Optional: compare the source hash with the kernel's signed list.
 ```console
 $ curl -s https://cdn.kernel.org/pub/linux/kernel/v6.x/sha256sums.asc | grep ' linux-6.12.tar.xz'
 $ nix hash convert --hash-algo sha256 --to sri <hex-from-the-line-above>
-                                                  # the same hash as in headers.nix
+                                                  # the same hash as in your file
+```
+
+**Compare with the answer key:**
+
+```console
+$ diff -u solutions/lfs-toolchain/linux-headers/default.nix lfs-toolchain/linux-headers/default.nix
+$ nix run nixpkgs#nix-diff -- $(nix eval --raw .#solutions.headers.drvPath) $(nix eval --raw .#headers.drvPath)
 ```
 
 **If it fails:** a tool is missing from the sandbox. Add it to
 `nativeBuildInputs` (for example `perl`, `bison` or `flex`).
 
-**Nix concepts:** [the sandbox](appendix-nix-concepts.md#the-sandbox), [SRI hashes](appendix-nix-concepts.md#fixed-output-derivations).
+**Nix concepts:** [the sandbox](appendix-nix-concepts.md#the-sandbox),
+[SRI hashes](appendix-nix-concepts.md#fixed-output-derivations),
+[phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases).

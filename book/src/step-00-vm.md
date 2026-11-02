@@ -36,7 +36,7 @@ $ nix --version                              # prints a version
 $ nix config show sandbox                    # true
 $ d=$(mktemp -d); touch $d/a $d/A; ls $d | wc -l; rm -r $d    # 2 (case-sensitive)
 $ df -h /nix | tail -1                       # 40G or more available
-$ nix eval --raw .#packages.aarch64-linux.binutils.drvPath    # /nix/store/...-lfs-binutils-2.43.drv
+$ nix eval --raw .#solutions.binutils.drvPath    # /nix/store/...-lfs-binutils-2.43.drv
 $ ldd --version | head -1                    # the HOST glibc version; write it down for step 6
 ```
 

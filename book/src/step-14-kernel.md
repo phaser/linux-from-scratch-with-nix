@@ -1,6 +1,6 @@
 # Step 14 — the kernel
 
-**File to write:** `distro/kernel.nix`, pname `lfs-final-linux`
+**File to write:** `lfs-distro/kernel/default.nix`, attribute `kernel`, pname `lfs-final-linux`
 
 **Do:**
 
@@ -19,7 +19,7 @@
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.kernel -o result-kernel -L    # about 10 to 30 minutes
+$ nix build .#kernel -o result-kernel -L    # about 10 to 30 minutes
 $ file result-kernel/Image                         # Linux kernel ARM64 boot executable Image, little-endian, 4K pages
 $ grep -E '^CONFIG_(SERIAL_AMBA_PL011_CONSOLE|DEVTMPFS|BLK_DEV_INITRD|VIRTIO_BLK|EXT4_FS|BINFMT_SCRIPT)=' result-kernel/config
                                                    # all 6 lines end with =y

@@ -1,7 +1,8 @@
 # Part 2 — libc and the full cross compiler
 
-From here on you write the derivations. Add each one to
-`bootstrap/default.nix`.
+From here on you write the derivations. Put each one in its own
+directory under `lfs-toolchain/`, and add its attribute to
+`lfs-toolchain/default.nix`.
 
 Chapters in this part:
 

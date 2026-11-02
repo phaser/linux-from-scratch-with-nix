@@ -1,6 +1,7 @@
 # Step 16 — the system tree
 
-**File to write:** `distro/system.nix`
+**Files to write:** `lfs-distro/sysenv/`, `lfs-distro/etc/` and `lfs-distro/init/`,
+each with a `default.nix`
 
 **Do:** write three derivations.
 
@@ -63,11 +64,11 @@
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.sysenv -o result-sysenv
+$ nix build .#sysenv -o result-sysenv
 $ readlink -f result-sysenv/bin/ls                 # ...-lfs-final-coreutils-.../bin/ls (GNU wins)
 $ readlink -f result-sysenv/sbin/init              # ...-lfs-final-busybox-.../bin/busybox
 $ readlink -f result-sysenv/bin/gcc                # ...-gcc-wrapper-.../bin/gcc
-$ nix build .#packages.aarch64-linux.etc -o result-etc && cat result-etc/inittab
+$ nix build .#etc -o result-etc && cat result-etc/inittab
 $ result-sysenv/bin/bash -n result-etc/rc && echo syntax ok    # syntax ok
 ```
 

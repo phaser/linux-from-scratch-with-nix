@@ -1,6 +1,6 @@
 # Step 4 — glibc (FHS layout, for the sysroot)
 
-**File to write:** `bootstrap/glibc.nix`
+**File to write:** `lfs-toolchain/glibc/default.nix`, attribute `glibc`
 
 LFS installs glibc into the shared `$LFS` directory. Nix store paths are
 immutable, so you cannot install into one and add to it later. This step
@@ -38,7 +38,7 @@ builds glibc into its own path with an FHS layout (`/usr/lib`,
 **Verify:**
 
 ```console
-$ nix build .#packages.aarch64-linux.glibc -o result-glibc -L
+$ nix build .#glibc -o result-glibc -L
 $ L=$PWD/result-glibc/usr/lib
 $ ls $L/{libc.so,libc.so.6,libc.a,ld-linux-aarch64.so.1,crt1.o,crti.o,crtn.o}
                                                   # all 7 exist
