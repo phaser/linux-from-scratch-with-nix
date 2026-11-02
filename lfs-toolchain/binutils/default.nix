@@ -6,7 +6,7 @@ stdenv.mkDerivation rec {
 
     src = fetchurl {
         url = "mirror://gnu/binutils/binutils-${version}.tar.gz";
-        hash = lib.fakeHash;
+        hash = "sha256-AlxDbRUEkHbr5RHSllHMR4XuUCllqIOZNqZVGFgr3WQ=";
     };
 
     dontAddPrefix = true;

@@ -20,4 +20,6 @@ let
   triple = "aarch64-lfs-linux-gnu";
 in
 {
+  binutils = callPackage ./binutils { inherit triple; };
 }
+
