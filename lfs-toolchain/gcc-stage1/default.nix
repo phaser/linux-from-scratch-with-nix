@@ -6,7 +6,7 @@ stdenv.mkDerivation rec {
 
     src = fetchurl {
         url = "mirror://gnu/gcc/gcc-${version}/gcc-${version}.tar.xz";
-        hash = lib.fakeHash;
+        hash = "sha256-p7Obxpy/niWCbFpgqyZHcAH3wI2FzsBLwOKcq+1vPMk=";
     };
 
     buildInputs = [ gmp mpfr libmpc isl ];
