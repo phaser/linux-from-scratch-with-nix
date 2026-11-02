@@ -1,4 +1,4 @@
- #!/usr/bin/env bash
+#!/usr/bin/env bash
   set -euo pipefail
   attr=${1:-binutils}
   link=${2:-result-$attr}

@@ -1,4 +1,4 @@
-{ lib, stdenv, fetchurl, triple }:
+{ lib, stdenv, fetchurl, texinfo, triple }:
 
 stdenv.mkDerivation rec {
     pname = "lfs-binutils";
@@ -8,6 +8,10 @@ stdenv.mkDerivation rec {
         url = "mirror://gnu/binutils/binutils-${version}.tar.gz";
         hash = "sha256-AlxDbRUEkHbr5RHSllHMR4XuUCllqIOZNqZVGFgr3WQ=";
     };
+
+    # The build regenerates the bfd manual's .texi inputs, so make rebuilds
+    # bfd.info and needs makeinfo. LFS lists Texinfo as a host requirement.
+    nativeBuildInputs = [ texinfo ];
 
     dontAddPrefix = true;
     preConfigure = "mkdir -p build && cd build";
@@ -19,7 +23,7 @@ stdenv.mkDerivation rec {
         "--disable-nls"
         "--disable-werror"
         "--disable-gprofng"
-        "--enable-default-hash-style=gnu0"
+        "--enable-default-hash-style=gnu"
     ];
 
     meta = {
