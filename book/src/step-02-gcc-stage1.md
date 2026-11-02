@@ -109,9 +109,11 @@ $ nix run nixpkgs#nix-diff -- $(nix eval --raw .#solutions.gccStage1.drvPath) $(
 - Errors about `format-security` in `libcpp`: add
   `hardeningDisable = [ "format" ];`. nixpkgs does the same for its own gcc.
 - `no matching function for call to 'S2C(const char8_t [2])'` in `libcody`:
-  the host g++ 16 uses C++20 by default. Add
-  `env.CXXFLAGS = "-g -O2 -std=gnu++17";`. Do not use `NIX_CFLAGS_COMPILE`,
-  because it also goes to C files.
+  the host g++ 16 uses C++20 by default. Add `export CXX="g++ -std=gnu++17"`
+  to `preConfigure`.
+- `checking whether g++ is for C++11... no`, then `C++11 is required`: you put
+  `-std` in `CXXFLAGS`. The libcody check adds `-std=c++11` to `CXX`, and
+  `CXXFLAGS` comes after it. Put the flag in `CXX`.
 - gcc's configure accepts unknown `--with-*` and `--disable-*` options without
   a warning. A typo such as `--with-gmp-libs` has no effect. Compare your
   flags with `./configure --help`.

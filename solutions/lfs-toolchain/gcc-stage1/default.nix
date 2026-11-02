@@ -30,12 +30,6 @@ stdenv.mkDerivation rec {
   # nixpkgs disables the same flag for its own gcc.
   hardeningDisable = [ "format" ];
 
-  # The host g++ 16 defaults to C++20, where u8"" literals are char8_t, and
-  # libcody fails. libcody configure adds -std=c++11, but the top-level
-  # Makefile passes its own CXX and drops it. g++ 14 defaults to gnu++17.
-  # Not NIX_CFLAGS_COMPILE: that also goes to C files.
-  env.CXXFLAGS = "-g -O2 -std=gnu++17";
-
   # Divergence from LFS: in LFS, binutils and gcc share the $LFS/tools
   # prefix, so gcc finds ${triple}-as, -ld, -ar and -ranlib there. Here
   # binutils is a separate store path, and stdenv puts only $pkg/bin on
@@ -47,6 +41,13 @@ stdenv.mkDerivation rec {
   dontAddPrefix = true;
   preConfigure = ''
     export PATH=${binutils}/tools/bin:$PATH
+    # The host g++ 16 defaults to C++20, where u8"" literals are char8_t, and
+    # libcody fails. g++ 14 defaults to gnu++17.
+    #   - Not CXXFLAGS: autoconf compiles with $CXX $CXXFLAGS, so the flag
+    #     overrides the -std=c++11 that the libcody configure check adds.
+    #   - Not env.CXX: the cc-wrapper setup hook exports CXX=g++ later.
+    #   - Not NIX_CFLAGS_COMPILE: that also goes to C files.
+    export CXX="g++ -std=gnu++17"
     mkdir -p build && cd build
   '';
   configureScript = "../configure";

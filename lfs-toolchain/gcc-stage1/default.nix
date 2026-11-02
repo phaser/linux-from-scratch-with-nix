@@ -12,13 +12,13 @@ stdenv.mkDerivation rec {
     buildInputs = [ gmp mpfr libmpc isl ];
     hardeningDisable = [ "format" ];
 
-    # The host g++ 16 defaults to C++20, where u8"" literals are char8_t.
-    # libcody needs C++17 or earlier. g++ 14 defaults to gnu++17.
-    env.CXXFLAGS = "-g -O2 -std=gnu++17";
-
     dontAddPrefix = true;
     preConfigure = ''
         export PATH=${binutils}/tools/bin:$PATH
+        # The host g++ 16 defaults to C++20, where u8"" literals are char8_t,
+        # and libcody fails. g++ 14 defaults to gnu++17. Not CXXFLAGS: it
+        # comes after the -std=c++11 that the libcody configure check adds.
+        export CXX="g++ -std=gnu++17"
         mkdir -p build && cd build
     '';
     configureScript = "../configure";
