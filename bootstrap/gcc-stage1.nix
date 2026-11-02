@@ -21,20 +21,31 @@ stdenv.mkDerivation rec {
     hash = lib.fakeHash;
   };
 
-  # gcc's tarball does not include its prerequisites. LFS runs
-  # contrib/download_prerequisites, which needs the network; in a sandbox we
-  # point configure at the copies nixpkgs already provides.
+  # gcc's tarball does not include its prerequisites. LFS unpacks the gmp,
+  # mpfr and mpc tarballs into the gcc source tree; here we point configure
+  # at the copies nixpkgs already provides. LFS does not use isl.
   buildInputs = [ gmp mpfr libmpc isl ];
-  # binutils must be on PATH so configure finds ${triple}-as and ${triple}-ld.
-  nativeBuildInputs = [ binutils ];
 
+  # Divergence from LFS: in LFS, binutils and gcc share the $LFS/tools
+  # prefix, so gcc finds ${triple}-as, -ld, -ar and -ranlib there. Here
+  # binutils is a separate store path, and stdenv puts only $pkg/bin on
+  # PATH, not $pkg/tools/bin. So:
+  #   - PATH covers the build (top-level configure looks up the target
+  #     ar, ranlib, nm and so on by name);
+  #   - --with-as/--with-ld hardcode the tools into the installed driver,
+  #     so `gcc -c` works later without binutils on PATH.
   dontAddPrefix = true;
-  preConfigure = "mkdir -p build && cd build";
+  preConfigure = ''
+    export PATH=${binutils}/tools/bin:$PATH
+    mkdir -p build && cd build
+  '';
   configureScript = "../configure";
 
   configureFlags = [
     "--target=${triple}"
     "--prefix=${placeholder "out"}/tools"
+    "--with-as=${binutils}/tools/bin/${triple}-as"
+    "--with-ld=${binutils}/tools/bin/${triple}-ld"
 
     "--with-gmp-include=${lib.getDev gmp}/include"
     "--with-gmp-lib=${lib.getLib gmp}/lib"
@@ -45,6 +56,10 @@ stdenv.mkDerivation rec {
     "--with-isl-include=${lib.getDev isl}/include"
     "--with-isl-lib=${lib.getLib isl}/lib"
 
+    # Divergences from LFS pass 1, which also passes --with-sysroot=$LFS,
+    # --with-glibc-version, --enable-default-pie and --enable-default-ssp,
+    # and builds c,c++. There is no sysroot yet (rung 4 creates one), and
+    # this rung only needs a C compiler that emits objects.
     "--with-newlib"
     "--without-headers"
     "--enable-languages=c"

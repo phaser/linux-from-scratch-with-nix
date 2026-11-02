@@ -22,11 +22,13 @@ stdenv.mkDerivation rec {
   preConfigure = "mkdir -p build && cd build";
   configureScript = "../configure";
 
+  # Divergence from LFS pass 1, which also passes --with-sysroot=$LFS and
+  # --enable-new-dtags. There is no sysroot yet; rung 4 creates one.
   configureFlags = [
     "--target=${triple}"
     "--prefix=${placeholder "out"}/tools"
     "--disable-nls"
-    "--disable-werror" # macOS and new compilers are noisy; LFS does this too
+    "--disable-werror" # new host compilers add warnings; LFS does this too
     "--disable-gprofng"
     "--enable-default-hash-style=gnu"
   ];
