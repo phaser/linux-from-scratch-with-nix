@@ -16,13 +16,20 @@
 # The answer key for steps 1 to 3 is in ../solutions/lfs-toolchain/.
 
 let
-  inherit (pkgs) callPackage;
+  inherit (pkgs) callPackage linkFarm;
   triple = "aarch64-lfs-linux-gnu";
   
   binutils = callPackage ./binutils { inherit triple; };
   gccStage1 = callPackage ./gcc-stage1 { inherit triple binutils; };
+  headers = callPackage ./linux-headers { };
 in
 {
-    inherit binutils gccStage1;
+    inherit binutils gccStage1 headers;
+
+    toolchain = linkFarm "lfs-toolchain" [
+        { name = "binutils"; path = binutils; }
+        { name = "gcc-stage1"; path = gccStage1; }
+        { name = "linux-headers"; path = headers; }
+    ];
 }
 
