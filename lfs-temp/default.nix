@@ -15,10 +15,12 @@ in rec {
     gawk        = call ./gawk;
     findutils   = call ./findutils;
     diffutils   = call ./diffutils;
+    gnupatch    = call ./gnupatch;
+    gnutar      = call ./gnutar;
     patchelf    = call ./patchelf;
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
-        paths = [ gnumake coreutils bash gnused gnugrep gawk findutils diffutils patchelf ];
+        paths = [ gnumake coreutils bash gnused gnugrep gawk findutils diffutils gnupatch gnutar patchelf ];
     };
 }
