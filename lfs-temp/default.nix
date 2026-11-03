@@ -10,7 +10,8 @@ in rec {
     gnumake     = call ./gnumake;
     coreutils   = call ./coreutils;
     bash        = call ./bash;
-    gnused         = call ./gnused;
+    gnused      = call ./gnused;
+    patchelf    = call ./patchelf;
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
