@@ -12,15 +12,15 @@ let
   gccStage2 = callPackage ./gcc-stage2 { inherit triple binutils sysroot; };
 in
 {
-    inherit binutils gccStage1 headers glibc sysroot gccStage2;
+    inherit triple binutils gccStage1 headers glibc sysroot gccStage2;
 
     toolchain = linkFarm "lfs-toolchain" [
         { name = "binutils"; path = binutils; }
-        { name = "gccStage1"; path = gcc-stage1; }
+        { name = "gccStage1"; path = gccStage1; }
         { name = "linux-headers"; path = headers; }
         { name = "glibc"; path = glibc; }
         { name = "sysroot"; path = sysroot; }
-        { name = "gccStage2"; path = gcc-stage2; }
+        { name = "gccStage2"; path = gccStage2; }
     ];
 }
 

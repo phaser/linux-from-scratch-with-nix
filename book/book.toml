@@ -6,3 +6,4 @@ src = "src"
 
 [output.html]
 git-repository-url = "https://github.com/phaser/my-linux-distro"
+additional-css = ["custom.css"]
