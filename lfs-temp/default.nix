@@ -9,9 +9,10 @@ let
 in rec {
     gnumake     = call ./gnumake;
     coreutils   = call ./coreutils;
+    bash        = call ./bash;
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
-        paths = [ gnumake coreutils ];
+        paths = [ gnumake coreutils bash ];
     };
 }
