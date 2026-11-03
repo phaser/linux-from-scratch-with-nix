@@ -1,20 +1,5 @@
 { pkgs }:
 
-# Your cross toolchain: steps 1 to 6 of the book.
-#
-# Write each component in its own directory, as <name>/default.nix, and add
-# one attribute for it below. The book's checks use these attribute names:
-#
-#   step 1  binutils     ./binutils
-#   step 2  gccStage1    ./gcc-stage1
-#   step 3  headers      ./linux-headers
-#   step 4  glibc        ./glibc
-#   step 5  sysroot      ./sysroot
-#   step 6  gccStage2    ./gcc-stage2
-#
-# When step 6 works, add a `toolchain` attribute that builds all of them.
-# The answer key for steps 1 to 3 is in ../solutions/lfs-toolchain/.
-
 let
   inherit (pkgs) callPackage linkFarm;
   triple = "aarch64-lfs-linux-gnu";
@@ -24,14 +9,18 @@ let
   headers = callPackage ./linux-headers { };
   glibc = callPackage ./glibc { inherit triple binutils gccStage1 headers; };
   sysroot = callPackage ./sysroot { inherit headers glibc; };
+  gccStage2 = callPackage ./gcc-stage2 { inherit triple binutils sysroot; };
 in
 {
-    inherit binutils gccStage1 headers glibc sysroot;
+    inherit binutils gccStage1 headers glibc sysroot gccStage2;
 
     toolchain = linkFarm "lfs-toolchain" [
         { name = "binutils"; path = binutils; }
-        { name = "gcc-stage1"; path = gccStage1; }
+        { name = "gccStage1"; path = gcc-stage1; }
         { name = "linux-headers"; path = headers; }
+        { name = "glibc"; path = glibc; }
+        { name = "sysroot"; path = sysroot; }
+        { name = "gccStage2"; path = gcc-stage2; }
     ];
 }
 
