@@ -17,10 +17,13 @@ in rec {
     diffutils   = call ./diffutils;
     gnupatch    = call ./gnupatch;
     gnutar      = call ./gnutar;
+    gzip        = call ./gzip;
+    xz          = call ./xz;
+    bzip2       = pkgs.callPackage ./bzip2 { inherit mkTemp; inherit (toolchain) triple; };
     patchelf    = call ./patchelf;
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
-        paths = [ gnumake coreutils bash gnused gnugrep gawk findutils diffutils gnupatch gnutar patchelf ];
+        paths = [ gnumake coreutils bash gnused gnugrep gawk findutils diffutils gnupatch gnutar gzip xz bzip2 patchelf ];
     };
 }
