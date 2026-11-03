@@ -12,10 +12,11 @@ in rec {
     bash        = call ./bash;
     gnused      = call ./gnused;
     gnugrep     = call ./gnugrep;
+    gawk        = call ./gawk;
     patchelf    = call ./patchelf;
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
-        paths = [ gnumake coreutils bash gnused gnugrep patchelf ];
+        paths = [ gnumake coreutils bash gnused gnugrep gawk patchelf ];
     };
 }
