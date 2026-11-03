@@ -1,0 +1,4 @@
+/* mdBook default is 750px; 200px wider for the long Nix and console lines. */
+:root {
+    --content-max-width: 950px;
+}
