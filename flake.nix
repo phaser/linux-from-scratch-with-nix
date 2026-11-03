@@ -21,7 +21,7 @@
             toolchain = import ./lfs-toolchain { inherit pkgs; };
         in toolchain // {
             temp = import ./lfs-temp { inherit pkgs toolchain; };
-            solutions = import ./solutions/lfs-toolchain { inherit pkgs; };
+            lfstoolchain = import ./lfs-toolchain { inherit pkgs; };
       };
     };
 }
