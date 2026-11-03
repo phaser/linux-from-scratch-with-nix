@@ -8,9 +8,10 @@ let
     call = dir: pkgs.callPackage dir { inherit mkTemp; };
 in rec {
     gnumake     = call ./gnumake;
+    coreutils   = call ./coreutils;
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
-        paths = [ gnumake ];
+        paths = [ gnumake coreutils ];
     };
 }

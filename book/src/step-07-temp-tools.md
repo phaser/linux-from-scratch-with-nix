@@ -25,30 +25,139 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
        export STRIP=${triple}-strip RANLIB=${triple}-ranlib
      '' + (args.preConfigure or "");
      LDFLAGS = "-static";
+     dontPatchShebangs = true;  # else scripts get the host bash
    })
    ```
 
    The default `--prefix=$out` stays. The tools use the Nix layout. Static
    linking means that there is no loader path to get wrong.
 
-2. Build the tools one at a time, in this order. Take the configure flags from
-   LFS chapter 6 for each tool.
+2. Build the tools one at a time, in this order. `gnumake` is first because
+   it is small and tests the helper. `patchelf` is C++, and the fixup phase
+   of every later stdenv needs it.
 
-   1. `gnumake` (small; it tests the helper)
-   2. `coreutils`
-   3. `bash` (add `--without-bash-malloc`)
-   4. `gnused`, `gnugrep`, `gawk`, `findutils`, `diffutils`, `gnupatch`
-   5. `gnutar`, `gzip`, `xz`
-   6. `bzip2` (no configure script: `dontConfigure = true;` and
-      `makeFlags = [ "CC=${triple}-gcc" "AR=${triple}-ar" "RANLIB=${triple}-ranlib" "PREFIX=$(out)" ];`)
-   7. `patchelf` (C++; the fixup phase of every later stdenv needs it)
+   | # | Attribute | Version | `src.url` | `src.hash` |
+   |---|---|---|---|---|
+   | 1 | `gnumake` | 4.4.1 | `mirror://gnu/make/make-${version}.tar.gz` | `sha256-3Rb7HWe/q3mnL16DkHNcSePo5wtJRaFasfgd23hlj7M=` |
+   | 2 | `coreutils` | 9.5 | `mirror://gnu/coreutils/coreutils-${version}.tar.xz` | `sha256-zTKO3qyS9qZl3p8yPJO3Eq8YWLwuDYjz9xAEaUcKG4o=` |
+   | 3 | `bash` | 5.2.32 | `mirror://gnu/bash/bash-${version}.tar.gz` | `sha256-0++A0rZ9jLvk0yZcY6csRvmyeOrW4OBtYYAbWPI/ULU=` |
+   | 4 | `gnused` | 4.9 | `mirror://gnu/sed/sed-${version}.tar.xz` | `sha256-biJrcy4c1zlGStaGK9Ghq6QteYKSLaelNRljHSSXUYE=` |
+   | 5 | `gnugrep` | 3.11 | `mirror://gnu/grep/grep-${version}.tar.xz` | `sha256-HbKu3eidDepCsW2VKPiUyNFdrk4ZC1muzHj1qVEnbqs=` |
+   | 6 | `gawk` | 5.3.0 | `mirror://gnu/gawk/gawk-${version}.tar.xz` | `sha256-ypwW09EdD/jGnXncC0cmfhMppps5t5mJVgTtRH08qQs=` |
+   | 7 | `findutils` | 4.10.0 | `mirror://gnu/findutils/findutils-${version}.tar.xz` | `sha256-E4fgtn/yR9Kr3pmPkN+/cMFJE5Glnd/suK5ph4nwpPU=` |
+   | 8 | `diffutils` | 3.10 | `mirror://gnu/diffutils/diffutils-${version}.tar.xz` | `sha256-kOXpPMck5OvhLt6A3xY0Bjx6hVaSaFkZv+YLVWyb0J4=` |
+   | 9 | `gnupatch` | 2.7.6 | `mirror://gnu/patch/patch-${version}.tar.xz` | `sha256-rGEL2per4Nn2t8ljJVoR3LGWwl4zfGH5Tkd41jLx2P0=` |
+   | 10 | `gnutar` | 1.35 | `mirror://gnu/tar/tar-${version}.tar.xz` | `sha256-TWL/NzQux67XSFNTI5MMfPlKz3HDWRiCsmp+pQ8+3BY=` |
+   | 11 | `gzip` | 1.13 | `mirror://gnu/gzip/gzip-${version}.tar.xz` | `sha256-dFTraTXbF8ZlVXbC4bD6vv04tNCTbg+H9IzQYs6RoFc=` |
+   | 12 | `xz` | 5.6.2 | `https://github.com/tukaani-project/xz/releases/download/v${version}/xz-${version}.tar.xz` | `sha256-qds7s9ZOJIoPrpY/j7a6hRomuhgi5QTcDv0YqAxibK8=` |
+   | 13 | `bzip2` | 1.0.8 | `https://sourceware.org/pub/bzip2/bzip2-${version}.tar.gz` | `sha256-q1oDF27hBtPw+pDjgdpHjdrkBZGBU8yiSOaCzQxKImk=` |
+   | 14 | `patchelf` | 0.18.0 | `https://github.com/NixOS/patchelf/releases/download/${version}/patchelf-${version}.tar.bz2` | `sha256-GVKyp4K6V2J5whHulC40F0j9tEmX9wTdU970bNBVRws=` |
+
+   The versions are the LFS 12.2 versions. LFS 12.2 also uses binutils 2.43,
+   gcc 14.2.0 and glibc 2.40. `bzip2` and `patchelf` are not in LFS chapter 6.
+
+   **Settings for each tool.** Put these attributes in the tool file, next to
+   `pname`, `version` and `src`. Each comment tells where the setting comes from:
+
+   - *LFS*: the flag is in LFS chapter 6.
+   - *static*: the flag is necessary because the helper links with `-static`.
+     LFS chapter 6 links dynamically and does not need it.
+   - *Nix*: the flag is necessary because of the Nix sandbox or the stdenv.
+
+   ```nix
+   # gnumake
+   configureFlags = [ "--without-guile" ];                # LFS
+
+   # coreutils
+   configureFlags = [
+     "--enable-install-program=hostname"                  # LFS
+     "--enable-no-install-program=kill,uptime,stdbuf"     # LFS; stdbuf: static (1)
+     "gl_cv_func_working_mktime=yes"                      # static (2)
+   ];
+
+   # bash
+   configureFlags = [ "--without-bash-malloc" "bash_cv_strtold_broken=no" ];  # LFS
+   preConfigure = ''
+     export CC_FOR_BUILD="gcc -std=gnu17"                 # Nix (3)
+     export CFLAGS="-g -O2 -fpermissive"                  # Nix (4)
+   '';
+
+   # gnused, patchelf: no settings
+
+   # gnugrep
+   makeFlags = [ "SHELL=/bin/sh" ];                       # Nix (5)
+
+   # gawk
+   postPatch = "sed -i 's/extras//' Makefile.in";         # LFS
+
+   # findutils
+   configureFlags = [
+     "gl_cv_func_working_mktime=yes"                      # static (2)
+     "ac_cv_path_SORT=sort"                               # Nix (6)
+   ];
+
+   # diffutils
+   configureFlags = [
+     "gl_cv_func_working_mktime=yes"                      # static (2)
+     "ac_cv_path_PR_PROGRAM="                             # Nix (6)
+   ];
+
+   # gnupatch, gnutar
+   configureFlags = [ "gl_cv_func_working_mktime=yes" ];  # static (2)
+
+   # gzip
+   configureFlags = [ "ac_cv_path_GREP=grep" ];           # Nix (6)
+   makeFlags = [ "SHELL=/bin/sh" ];                       # Nix (5)
+
+   # xz
+   configureFlags = [
+     "--disable-shared"                                   # static (7)
+     "gl_cv_posix_shell=/bin/sh"                          # Nix (5)
+   ];
+   makeFlags = [ "LDFLAGS=-all-static" ];                 # static (7)
+
+   # bzip2 (no configure script)
+   makeFlags = [
+     "CC=${triple}-gcc" "AR=${triple}-ar" "RANLIB=${triple}-ranlib"
+     "PREFIX=$(out)" "LDFLAGS=-static"                    # (8)
+   ];
+   ```
+
+   The `bzip2` file needs `triple` as an argument. In step 3, give it with
+   `pkgs.callPackage ./bzip2 { inherit mkTemp; inherit (toolchain) triple; }`.
+
+   Reasons:
+
+   1. `stdbuf` needs a shared library, `libstdbuf.so`. A static build cannot
+      make it.
+   2. When gnulib cross-compiles, it cannot run its `mktime` test. It then
+      adds its own `mktime`. The static `libc.a` also defines
+      `__mktime_internal`, so the link fails with `multiple definition`.
+   3. `mkbuiltins` compiles with the host gcc, which defaults to C23. The old
+      `xmalloc ()` declarations fail in C23.
+   4. Without ncurses, bash uses its bundled termcap. gcc 14 rejects its
+      implicit `write ()` call. `-fpermissive` changes the error to a warning.
+      (LFS builds ncurses before bash.)
+   5. Configure writes the shell path into the scripts (`egrep`, `zgrep`,
+      `xzgrep`). Stdenv calls `make SHELL=<host bash>`, and `makeFlags`
+      come after it, so `SHELL=/bin/sh` replaces it.
+   6. Configure stores the full path of a host tool: `sort` in `updatedb`,
+      `pr` in `diff`, `grep` in `zgrep`. That path puts the host tool in the
+      closure. An empty `PR_PROGRAM` disables only `diff -l`.
+   7. Libtool removes `-static` from the link of `xz`. Its flag for a fully
+      static program is `-all-static`. `--disable-shared` makes libtool link
+      `liblzma.a`.
+   8. Do not set `dontConfigure`. It also skips `preConfigure`, so the helper
+      sets no `PATH`. Without a `configure` script, the configure phase runs
+      only `preConfigure`. The bzip2 `Makefile` sets its own `LDFLAGS`, so
+      give `-static` again here.
 
    Example for `gnumake`. The tool file gives only what is special for the
    tool. The helper adds the cross flags and `-static`:
 
    ```nix
    # lfs-temp/gnumake/default.nix
-   { lib, fetchurl, mkTemp }:
+   { fetchurl, mkTemp }:
 
    mkTemp rec {
      pname = "gnumake";
@@ -56,7 +165,7 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
 
      src = fetchurl {
        url = "mirror://gnu/make/make-${version}.tar.gz";
-       hash = lib.fakeHash;  # the first build prints the real hash (step 1)
+       hash = "sha256-3Rb7HWe/q3mnL16DkHNcSePo5wtJRaFasfgd23hlj7M=";
      };
 
      # LFS chapter 6: build make without the Guile extension language.

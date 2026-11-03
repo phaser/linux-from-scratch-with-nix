@@ -13,4 +13,6 @@ stdenv.mkDerivation (args // {
         export STRIP=${triple}-strip RANLIB=${triple}-ranlib
     '' + (args.preConfigure or "");
     LDFLAGS = "-static";
+    # Keep #!/bin/sh in scripts. patchShebangs would point them at the host bash.
+    dontPatchShebangs = true;
 })
