@@ -22,9 +22,10 @@ let
   binutils = callPackage ./binutils { inherit triple; };
   gccStage1 = callPackage ./gcc-stage1 { inherit triple binutils; };
   headers = callPackage ./linux-headers { };
+  glibc = callPackage ./glibc { inherit triple binutils gccStage1 headers; };
 in
 {
-    inherit binutils gccStage1 headers;
+    inherit binutils gccStage1 headers glibc;
 
     toolchain = linkFarm "lfs-toolchain" [
         { name = "binutils"; path = binutils; }
