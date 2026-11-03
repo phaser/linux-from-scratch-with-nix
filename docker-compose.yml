@@ -1,0 +1,23 @@
+# The build environment from the Dockerfile. See its header for the details.
+#
+#   docker compose run --rm lfs                                  # a shell in /work
+#   docker compose run --rm lfs nix build .#toolchain -o result-toolchain -L
+#
+# After you change the Dockerfile:
+#   docker compose build && docker volume rm lfs-nix-store
+
+services:
+  lfs:
+    build: .
+    image: lfs-nix
+    privileged: true          # the Nix sandbox needs namespaces
+    volumes:
+      - nix-store:/nix
+      - .:/work
+    working_dir: /work
+    stdin_open: true
+    tty: true
+
+volumes:
+  nix-store:
+    name: lfs-nix-store       # same volume as the plain docker run command
