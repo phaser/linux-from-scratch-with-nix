@@ -30,9 +30,11 @@ stdenv.mkDerivation rec {
   dontAddPrefix = true;
   preConfigure = ''
     export PATH=${binutils}/tools/bin:${gccStage1}/tools/bin:$PATH;
+
     # stdenv exports CC=gcc (the host gcc 16), AR=ar, and others. configure
     # takes them over the ${triple}-* tools on PATH, so unset them.
     unset CC CXX AR AS LD NM OBJCOPY OBJDUMP RANLIB READELF STRIP
+    
     # dontStrip keeps the -g debug info. Its .debug_line_str section records
     # the include directories of gcc stage 1 and the kernel headers as store
     # paths. Nix then sees them as runtime references, and the closure pulls
