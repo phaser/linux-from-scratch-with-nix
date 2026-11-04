@@ -9,14 +9,51 @@ second glibc with the Nix layout.
 
 ## 8a — `lfs-temp-glibc`
 
-**Do:** as in step 4, but:
+**Do:** copy your `lfs-toolchain/glibc/default.nix`, then change it:
 
-- Built by gcc stage 2 (`PATH` to `${gccStage2}/tools/bin`).
-- Keep the default `--prefix=$out`. Remove `libc_cv_slibdir`, `DESTDIR` and
-  `rootsbindir`.
-- In `postInstall`, link the kernel headers into `$out/include`, without
-  `scsi`. nixpkgs glibc does the same (`pkgs/development/libraries/glibc/default.nix`).
+- `pname = "lfs-temp-glibc"`. Use `stdenv.mkDerivation`, not `mkTemp`.
+  `mkTemp` sets `LDFLAGS = "-static"`, and glibc must build shared libraries.
+- Built by gcc stage 2. Replace `gccStage1` with `gccStage2` in the arguments,
+  in `PATH`, and in the `-fdebug-prefix-map` flag.
+- Keep the default `--prefix=$out`. Remove these lines from the copy:
+
+  | Line | Where |
+  |---|---|
+  | `dontAddPrefix = true;` | top level |
+  | `echo "rootsbindir=/usr/sbin" > configparms` | `preConfigure` |
+  | `"--prefix=/usr"` | `configureFlags` |
+  | `"libc_cv_slibdir=/usr/lib"` | `configureFlags` |
+  | `installFlags = [ "DESTDIR=${placeholder "out"}" ];` | top level |
+- In `postInstall`, copy the kernel headers into `$out/include`, without
+  `scsi`. glibc installs its own `scsi` headers.
+
+  ```nix
+  postInstall = ''
+    for d in ${headers}/usr/include/*; do
+      [ "$(basename $d)" = scsi ] || cp -r $d $out/include/
+    done
+  '';
+  ```
+
+  nixpkgs glibc makes symlinks (`ln -s`), not copies
+  (`pkgs/development/libraries/glibc/default.nix`). There, the headers go in
+  the separate `dev` output. This derivation has only one output. A symlink is a
+  store path reference, so the closure then gets the headers too.
 - `dontStrip`, `dontPatchELF`, `dontPatchShebangs`.
+
+Then add the attribute to `lfs-temp/default.nix`. glibc needs other toolchain
+arguments than the tools of step 7, so do not use `call`:
+
+```nix
+glibc = pkgs.callPackage ./glibc {
+    inherit (toolchain) triple binutils gccStage2 headers;
+};
+```
+
+Do not add `glibc` to `tools`. Step 9 uses `temp.glibc` directly.
+
+A flake sees only the files that git tracks. Before the first build, run
+`git add lfs-temp/glibc`. If you do not, `nix build` cannot find the file.
 
 **Verify:**
 

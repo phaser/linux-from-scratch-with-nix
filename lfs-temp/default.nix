@@ -22,6 +22,8 @@ in rec {
     bzip2       = pkgs.callPackage ./bzip2 { inherit mkTemp; inherit (toolchain) triple; };
     patchelf    = call ./patchelf;
 
+    glibc       = pkgs.callPackage ./glibc { inherit (toolchain) triple binutils headers gccStage2; }; 
+
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
         paths = [ gnumake coreutils bash gnused gnugrep gawk findutils diffutils gnupatch gnutar gzip xz bzip2 patchelf ];
