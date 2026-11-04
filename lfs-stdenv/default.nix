@@ -32,6 +32,9 @@ genericStdenv {
         inherit (pkgs.stdenv.hostPlatform) system;
         inherit (pkgs.config) rewriteURL;
     };
+    # The setup hook of patchelf shrinks the RPATH of each ELF file, as in
+    # nixpkgs (extraNativeBuildInputs = [ prevStage.patchelf ]).
+    extraNativeBuildInputs = [ temp.patchelf ];
     inherit cc;
     preHook = "dontPatchShebangs=1";
 }

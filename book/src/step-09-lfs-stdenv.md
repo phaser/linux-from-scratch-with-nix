@@ -30,10 +30,19 @@ genericStdenv {
     inherit (pkgs.stdenv.hostPlatform) system;
     inherit (pkgs.config) rewriteURL;
   };
+  extraNativeBuildInputs = [ temp.patchelf ];
   inherit cc;
   preHook = "dontPatchShebangs=1";
 }
 ```
+
+`initialPath` only puts the tools on `PATH`. A package in
+`extraNativeBuildInputs` also runs its setup hook in every build. The setup
+hook of `temp.patchelf` (step 7) runs `patchelf --shrink-rpath` on each ELF
+file in the fixup phase. nixpkgs does the same: `stageFun` gets
+`extraNativeBuildInputs = [ prevStage.patchelf ]`. Without the hook, the
+`RPATH` of each program keeps the gcc directories, and the runtime closure
+gets `lfs-temp-gcc`. Step 10 checks this.
 
 This uses the nixpkgs `wrapCCWith`, and those wrapper scripts run with the
 *host* bash and coreutils. That is a known leak. You remove it in step 11.
@@ -48,6 +57,8 @@ $ nix build .#lfsStdenv -o result-lfs-stdenv
 $ ls result-lfs-stdenv                             # setup (and nix-support)
 $ grep -o '/nix/store/[a-z0-9]*-lfs-temp-[a-z]*' result-lfs-stdenv/setup | sort -u
                                                    # the temp tools from initialPath
+$ grep -o '[a-z0-9]*-lfs-temp-patchelf[^ "]*' result-lfs-stdenv/setup | sort -u
+                                                   # ...-lfs-temp-patchelf-0.18.0 (in defaultNativeBuildInputs too)
 $ nix path-info -r ./result-lfs-stdenv | grep -v -- '-lfs-'
                                                    # host bash, coreutils, gnugrep: the wrapper leak, expected now
 $ nix why-depends ./result-lfs-stdenv <one-of-those-paths>

@@ -176,12 +176,13 @@ this table shows:
 | `--with-as`, `--with-ld` | remove both | They store the step 1 binutils paths in gcc. Those programs run on the nixpkgs platform. In step 9, the bintools-wrapper gives `as` and `ld`. |
 | `--with-sysroot=${sysroot}` | remove it, and the `sysroot` argument | A native gcc has no sysroot. With one, gcc looks for headers in `${sysroot}${glibc}/include`, which does not exist. |
 | `--with-native-system-header-dir=/usr/include` | `=${glibc}/include`, and a `glibc` argument | See "Patch gcc", item 4. |
+| — | `--with-glibc-version=${glibc.version}` | See "The wrong header directory". |
 | `buildInputs` gmp, mpfr, libmpc, isl, and the eight `--with-gmp...` flags | the gmp, mpfr and mpc sources in the gcc tree | See "Libraries in the gcc tree". |
 | `export CXX="g++ -std=gnu++17"` | `export CXX_FOR_BUILD="g++ -std=gnu++17"` | gcc stage 2 (gcc 14) compiles gcc now. Only the programs that run during the build use the host g++ 16. |
 | — | `export LDFLAGS_FOR_BUILD=` | `LDFLAGS_FOR_BUILD` defaults to `LDFLAGS`, which is `-static`. The nixpkgs glibc in stdenv has no `libc.a`, so the build programs cannot link. An empty value stops the default. |
 | — | `--disable-lto --disable-plugin --disable-libsanitizer` | A static gcc cannot load plugins, and LTO needs the linker plugin. The temp tools do not need the sanitizers. |
 | — | `patches` | See "Patch gcc". |
-| — | `postInstall` | See "`limits.h`". |
+| — | `postInstall` | See "The wrong header directory". |
 | `hardeningDisable = [ "format" ]` | keep it | It applies to the host-built programs. |
 
 Add the attribute. It is in the same `rec` set as `glibc`:
@@ -221,18 +222,32 @@ mkTemp rec {
 the pinned nixpkgs, so the binary cache has the files. LFS 12.2 uses mpfr 4.2.1
 and mpc 1.3.1. isl is optional, and LFS does not use it.
 
-### `limits.h`
+### The wrong header directory
 
-gcc installs its own `limits.h`. When gcc finds the glibc `limits.h` at build
-time, its copy includes the glibc copy. Without that, values such as
-`PATH_MAX` are missing. gcc looks for it in `BUILD_SYSTEM_HEADER_DIR`. When
-build ≠ host and there is no `--with-build-sysroot`, that is
-`$out/aarch64-lfs-linux-gnu/sys-include`, which does not exist.
+When build ≠ host and there is no `--with-build-sysroot`, gcc looks for the
+glibc headers at build time in `$out/aarch64-lfs-linux-gnu/sys-include`. That
+directory does not exist, so gcc does not see glibc. This causes two
+problems.
 
 LFS chapter 6 uses `--with-build-sysroot=$LFS`. That does not work here:
 configure puts the value in front of the header directory, and
-`${sysroot}${glibc}/include` does not exist. Write the full `limits.h` after
-the install, as LFS chapter 5 does:
+`${sysroot}${glibc}/include` does not exist. Fix each problem as LFS chapter 5
+does.
+
+**1. The glibc version.** configure reads `features.h` to find the glibc
+version. With no version, it thinks that glibc has no stack protector. Then
+each program that uses `-fstack-protector` links `libssp.so.0` from this gcc.
+The cc-wrapper of step 9 adds `-fstack-protector-strong` to every compile, so
+every package would need this gcc at run time. Give the version:
+
+```nix
+"--with-glibc-version=${glibc.version}"
+```
+
+**2. `limits.h`.** gcc installs its own `limits.h`. When gcc finds the glibc
+`limits.h` at build time, its copy includes the glibc copy. Without that,
+values such as `PATH_MAX` are missing. Write the full `limits.h` after the
+install:
 
 ```nix
 postInstall = ''
@@ -331,6 +346,9 @@ $ result-temp-gcc/bin/gcc -print-search-dirs | grep ^libraries | tr : '\n'
                                                    # no entry starts with /lib/ or /usr/lib/ (the patch)
 $ printf '#include <limits.h>\nint x = PATH_MAX;\n' | result-temp-gcc/bin/gcc -fsyntax-only -x c -
                                                    # no output (the full limits.h)
+$ result-temp-gcc/bin/gcc -dumpspecs | grep -A1 '^\*link_ssp'
+                                                   # ...fstack-protector-explicit:}  (nothing after the
+                                                   # colon: no -lssp)
 $ nix path-info -r ./result-temp-gcc               # two lines: gcc and lfs-temp-glibc
 ```
 
@@ -344,6 +362,9 @@ compile and link needs the wrappers of step 9.
   `LDFLAGS_FOR_BUILD` is not empty, so the host programs link with `-static`.
 - `error: 'PATH_MAX' undeclared`: the `postInstall` step did not run, or it
   wrote the wrong file.
+- `*link_ssp:` is followed by `-lssp_nonshared -lssp`: the
+  `--with-glibc-version` flag is missing. You see it again in step 10: `hello`
+  needs `libssp.so.0`.
 - `nix path-info -r` shows `bash`, `gnused` or a nixpkgs `glibc`: find the
   file with `nix why-depends ./result-temp-gcc /nix/store/...-bash-...`. If it
   is in `install-tools`, check the `rm` line.

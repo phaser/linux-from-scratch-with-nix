@@ -14,4 +14,6 @@ mkTemp rec {
         export CC_FOR_BUILD="gcc -std=gnu17"
         export CFLAGS="-g -O2 -fpermissive"
     '';
+    # LFS: ln -sv bash $LFS/bin/sh. The stdenv fixup (audit-tmpdir) runs `sh`.
+    postInstall = "ln -s bash $out/bin/sh";
 }

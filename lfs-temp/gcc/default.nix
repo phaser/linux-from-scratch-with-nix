@@ -54,6 +54,11 @@ mkTemp rec {
         "--target=${triple}"
         # The default is /usr/include. Use the glibc of step 8a.
         "--with-native-system-header-dir=${glibc}/include"
+        # LFS. configure looks for features.h in $out/${triple}/sys-include
+        # (the same wrong place as limits.h below), so it cannot see glibc.
+        # Without this, gcc thinks glibc has no stack protector and links
+        # -lssp: every program then needs libssp.so.0 from this gcc.
+        "--with-glibc-version=${glibc.version}"
         "--enable-languages=c,c++"
         "--disable-nls"
         "--disable-multilib"

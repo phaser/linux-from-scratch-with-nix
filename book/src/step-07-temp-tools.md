@@ -81,8 +81,12 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
      export CC_FOR_BUILD="gcc -std=gnu17"                 # Nix (3)
      export CFLAGS="-g -O2 -fpermissive"                  # Nix (4)
    '';
+   postInstall = "ln -s bash $out/bin/sh";                # LFS (9)
 
-   # gnused, patchelf: no settings
+   # gnused: no settings
+
+   # patchelf (needs `path` in its arguments; callPackage gives it)
+   setupHook = "${path}/pkgs/development/tools/misc/patchelf/setup-hook.sh";  # Nix (10)
 
    # gnugrep
    makeFlags = [ "SHELL=/bin/sh" ];                       # Nix (5)
@@ -151,6 +155,14 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
       sets no `PATH`. Without a `configure` script, the configure phase runs
       only `preConfigure`. The bzip2 `Makefile` sets its own `LDFLAGS`, so
       give `-static` again here.
+   9. LFS makes the same link (`ln -sv bash $LFS/bin/sh`). Scripts and
+      stdenv hooks call `sh`. For example, the fixup phase of every package
+      that `lfsStdenv` builds runs `xargs ... sh -c`. Without the link, the
+      build of step 10 fails with `xargs: sh: No such file or directory`.
+   10. `path` is the nixpkgs source. The fixup phase copies this file to
+       `$out/nix-support/setup-hook`. The tool itself does not use it.
+       `lfsStdenv` (step 9) runs it in every build, to shrink the `RPATH`
+       of each program. The nixpkgs patchelf has the same hook.
 
    Example for `gnumake`. The tool file gives only what is special for the
    tool. The helper adds the cross flags and `-static`:
