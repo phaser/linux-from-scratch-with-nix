@@ -182,7 +182,7 @@ directories when you reach their part. `flake.nix` exposes everything under
 | `lfs-toolchain/` | Merged at the top (done) | `binutils`, `gccStage1`, `headers`, `glibc`, `sysroot`, `gccStage2`, `toolchain` |
 | `lfs-temp/` | As `temp` | `temp.gnumake` ... `temp.tools`, `temp.glibc`, `temp.binutils`, `temp.gcc` |
 | `lfs-stdenv/` | Merged at the top | `lfsStdenv`, `hello` |
-| `lfs-final/` | Merged at the top | `lfsStdenvFinal`, `helloFinal` |
+| `lfs-final/` | As `final`, plus `lfsStdenvFinal` and `helloFinal` at the top | `final.glibc` ... `final.patchelf`, `lfsStdenvFinal`, `helloFinal` |
 | `lfs-distro/` | Merged at the top | `kernel`, `busybox`, `sysenv`, `etc`, `init`, `initrd`, `rootImage` |
 | `solutions/lfs-toolchain/` | As `solutions` (done) | `solutions.binutils`, `solutions.gccStage1`, `solutions.headers`, `solutions.toolchain` |
 
