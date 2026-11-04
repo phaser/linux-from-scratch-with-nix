@@ -14,10 +14,10 @@
       legacyPackages.${system} = 
         let
             toolchain = import ./lfs-toolchain { inherit pkgs; };
-        in toolchain // {
+        in toolchain // rec {
             lfstoolchain = import ./lfs-toolchain { inherit pkgs; };
             temp = import ./lfs-temp { inherit pkgs toolchain; };
-            lfsStdenv = import ./lfs-stdenv { inherit pkgs; };
+            lfsStdenv = import ./lfs-stdenv { inherit pkgs nixpkgs temp; };
       };
     };
 }

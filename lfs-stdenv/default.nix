@@ -33,5 +33,5 @@ genericStdenv {
         inherit (pkgs.config) rewriteURL;
     };
     inherit cc;
-    preHook = "dontPatchShebangs=1"
+    preHook = "dontPatchShebangs=1";
 }
