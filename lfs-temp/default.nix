@@ -22,7 +22,8 @@ in rec {
     bzip2       = pkgs.callPackage ./bzip2 { inherit mkTemp; inherit (toolchain) triple; };
     patchelf    = call ./patchelf;
 
-    glibc       = pkgs.callPackage ./glibc { inherit (toolchain) triple binutils headers gccStage2; }; 
+    temp-glibc       = pkgs.callPackage ./glibc { inherit (toolchain) triple binutils headers gccStage2; }; 
+    temp-binutils    = pkgs.callPackage ./binutils { inherit (toolchain) triple; };
 
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
