@@ -72,6 +72,16 @@ You change a phase with attributes (`configureFlags`, `configureScript`,
 `runHook preX` and `runHook postX`, as `headers.nix` does. Read: the nixpkgs
 manual, "The Standard Environment"; Nix Pill 19.
 
+## Patches
+
+`patches` is a list of diff files. `patchPhase` applies them in order, after
+`unpackPhase`, with `patch -p1` (change it with `patchFlags`). A list item is
+usually a path such as `./fix.patch`. Nix copies the file into the store, so in
+a flake git must track it. A patch can also come from nixpkgs
+(`"${path}/pkgs/..."`) or from `fetchpatch`. For a small change that is not a
+diff, use `substituteInPlace` in `postPatch`. Step 8 uses the first patch.
+Read: the nixpkgs manual, "The Standard Environment", `patchPhase`.
+
 ## `$out` and `placeholder "out"`
 
 `$out` is the output store path, set as a shell variable during the build.
