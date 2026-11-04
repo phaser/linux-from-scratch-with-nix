@@ -69,5 +69,10 @@ mkTemp rec {
     postInstall = ''
         cat ../gcc/limitx.h ../gcc/glimits.h ../gcc/limity.h \
             > $out/lib/gcc/${triple}/${version}/include/limits.h
+
+        # fixincl and mkheaders run fixincludes again after the install. They
+        # store the paths of the host sh and sed, and through them the closure
+        # gets the nixpkgs glibc. The temp gcc does not need them.
+        rm -r $out/libexec/gcc/${triple}/${version}/install-tools
     '';
 }

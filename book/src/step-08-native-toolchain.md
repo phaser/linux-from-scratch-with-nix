@@ -238,8 +238,14 @@ the install, as LFS chapter 5 does:
 postInstall = ''
   cat ../gcc/limitx.h ../gcc/glimits.h ../gcc/limity.h \
     > $out/lib/gcc/${triple}/${version}/include/limits.h
+  rm -r $out/libexec/gcc/${triple}/${version}/install-tools
 '';
 ```
+
+The `rm` line removes `fixincl` and `mkheaders`. These programs run
+fixincludes again after the install. They store the paths of the host `sh` and
+`sed`, so without the `rm` line the closure gets the nixpkgs bash, sed and
+glibc. nixpkgs gcc also removes this directory.
 
 ### Patch gcc
 
@@ -338,6 +344,9 @@ compile and link needs the wrappers of step 9.
   `LDFLAGS_FOR_BUILD` is not empty, so the host programs link with `-static`.
 - `error: 'PATH_MAX' undeclared`: the `postInstall` step did not run, or it
   wrote the wrong file.
+- `nix path-info -r` shows `bash`, `gnused` or a nixpkgs `glibc`: find the
+  file with `nix why-depends ./result-temp-gcc /nix/store/...-bash-...`. If it
+  is in `install-tools`, check the `rm` line.
 
 - `Hunk #1 FAILED at ...`: the patch does not match this gcc version. Look in
   `pkgs/development/compilers/gcc/patches/default.nix` for the patch that

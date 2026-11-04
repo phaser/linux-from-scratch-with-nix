@@ -22,13 +22,9 @@ in rec {
     bzip2       = pkgs.callPackage ./bzip2 { inherit mkTemp; inherit (toolchain) triple; };
     patchelf    = call ./patchelf;
 
-    temp-glibc      = pkgs.callPackage ./glibc { inherit (toolchain) triple binutils headers gccStage2; }; 
-    temp-binutils   = pkgs.callPackage ./binutils { inherit mkTemp; inherit (toolchain) triple; };
-    temp-gcc        = pkgs.callPackage ./gcc {
-        inherit mkTemp;
-        inherit (toolchain) triple;
-        glibc = temp-glibc;
-    };
+    glibc       = pkgs.callPackage ./glibc { inherit (toolchain) triple binutils headers gccStage2; };
+    binutils    = pkgs.callPackage ./binutils { inherit mkTemp; inherit (toolchain) triple; };
+    gcc         = pkgs.callPackage ./gcc { inherit mkTemp glibc; inherit (toolchain) triple; };
     tools = pkgs.buildEnv {
         name = "lfs-temp-tools";
         paths = [ gnumake coreutils bash gnused gnugrep gawk findutils diffutils gnupatch gnutar gzip xz bzip2 patchelf ];
