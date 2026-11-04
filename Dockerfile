@@ -1,4 +1,4 @@
-# A container replacement for the Step 0 VM: aarch64 Linux + Nix with the sandbox on.
+# Step 0b of the book: a container replacement for the Step 0a VM: aarch64 Linux + Nix with the sandbox on.
 #
 # Build (no context needed; the repo is mounted at run time):
 #   docker build -t lfs-nix - < Dockerfile

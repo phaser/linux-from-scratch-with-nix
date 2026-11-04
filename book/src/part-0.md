@@ -2,4 +2,4 @@
 
 Chapters in this part:
 
-- [Step 0 — A Linux VM with Nix](step-00-vm.md)
+- [Step 0 — A Linux environment with Nix](step-00-environment.md)

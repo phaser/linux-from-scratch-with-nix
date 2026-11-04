@@ -74,7 +74,8 @@ On an aarch64-linux machine, `.#binutils` is short for
 
 ## Conventions
 
-- Run every command **inside the Linux VM**, in the repo directory.
+- Run every command **inside the Linux VM or the container** (step 0), in the
+  repo directory.
 - Give every build its own out-link with `-o`, so the results of earlier steps
   stay available:
 

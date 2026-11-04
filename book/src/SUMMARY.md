@@ -3,7 +3,7 @@
 [Introduction](introduction.md)
 
 - [Part 0 — The environment](part-0.md)
-  - [Step 0 — A Linux VM with Nix](step-00-vm.md)
+  - [Step 0 — A Linux environment with Nix](step-00-environment.md)
 - [Part 1 — The cross toolchain](part-1.md)
   - [Step 1 — binutils](step-01-binutils.md)
   - [Step 2 — gcc stage 1](step-02-gcc-stage1.md)
