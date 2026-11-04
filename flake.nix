@@ -15,8 +15,9 @@
         let
             toolchain = import ./lfs-toolchain { inherit pkgs; };
         in toolchain // {
-            temp = import ./lfs-temp { inherit pkgs toolchain; };
             lfstoolchain = import ./lfs-toolchain { inherit pkgs; };
+            temp = import ./lfs-temp { inherit pkgs toolchain; };
+            lfsStdenv = import ./lfs-stdenv { inherit pkgs; };
       };
     };
 }
