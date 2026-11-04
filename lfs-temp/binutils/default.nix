@@ -1,7 +1,7 @@
-{ lib, stdenv, fetchurl, texinfo, triple }:
+{ fetchurl, texinfo, mkTemp, triple }:
 
-stdenv.mkDerivation rec {
-    pname = "lfs-temp-binutils";
+mkTemp rec {
+    pname = "binutils";
     version = "2.43";
 
     src = fetchurl {
@@ -13,22 +13,24 @@ stdenv.mkDerivation rec {
     # bfd.info and needs makeinfo. LFS lists Texinfo as a host requirement.
     nativeBuildInputs = [ texinfo ];
 
-    dontAddPrefix = true;
-    preConfigure = "mkdir -p build && cd build";
-    configureScript = "../configure";
-
+    # mkTemp gives --host=${triple}. With --target the same, the tools are
+    # native: bin/ld, not bin/${triple}-ld. A static ld cannot load plugins,
+    # and gprofng needs shared libraries.
     configureFlags = [
         "--target=${triple}"
-        "--prefix=${placeholder "out"}/tools"
         "--disable-nls"
         "--disable-werror"
+        "--disable-shared"
         "--disable-plugins"
         "--disable-gprofng"
         "--enable-default-hash-style=gnu"
     ];
 
-    meta = {
-        description = "binutils for ${triple}, built from source";
-        platforms = lib.platforms.linux;
-    };
+    # libtool links the programs, and it removes -static (the mkTemp LDFLAGS):
+    # for libtool, -static means "no shared libtool libraries" only. Its flag
+    # for a static program is -all-static. gcc does not know -all-static, so
+    # the configure scripts must not see it. The top level configures each
+    # subdirectory during make, so configure them all first.
+    preBuild = "make configure-host";
+    makeFlags = [ "LDFLAGS=-all-static" ];
 }
