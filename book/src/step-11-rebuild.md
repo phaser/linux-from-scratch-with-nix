@@ -359,6 +359,13 @@ $ nix eval --raw .#lfsStdenv.drvPath; echo      # AFTER the change: the same pat
 
 If the paths are not the same, a default is not the value of step 9.
 
+**If it fails:**
+
+| You see | The cause |
+|---|---|
+| `error: attribute 'libc' missing` | The default is `temp.libc`. The attribute in `temp` is `glibc`: use `libc ? temp.glibc`. |
+| The paths are the same, but in 2b the closure has `lfs-temp-glibc` | The line `libc = temp.glibc;` is still in the `let` block. A `let` name hides the argument with the same name, so the wrappers always get `temp.glibc`. Remove the line. |
+
 ### 2b — `lfsStdenvFinalGlibc` and sample compilation 1
 
 This stdenv uses the temporary binutils and gcc, but the wrappers give them
@@ -416,8 +423,21 @@ final gcc of part 2d reads the headers of `lfs-final-glibc` only.
 
 **If it fails:**
 
-- The closure has `lfs-temp-glibc`: the `libc = glibc` argument is missing.
-  The default is `temp.glibc`.
+- `error: flake 'git+file:///work' does not provide attribute
+  '...final.helloFinalGlibc'`, but the attribute is in `lfs-final/default.nix`:
+  Nix hides the real error. To see it, evaluate the attribute directly:
+
+  ```console
+  $ nix eval --impure --raw --expr '(builtins.getFlake "git+file:///work").legacyPackages.aarch64-linux.final.helloFinalGlibc.drvPath'
+  ```
+
+  Use this command for each "does not provide attribute" error of this step.
+- `error: function 'anonymous lambda' called without required argument
+  'nixpkgs'` (or `'temp'`): the `final = import ./lfs-final { ... }` line of
+  `flake.nix` does not give `nixpkgs` and `temp`. See item 2.
+- The closure has `lfs-temp-glibc`: the `libc = glibc` argument is missing,
+  or the `let` block of `lfs-stdenv/default.nix` still has
+  `libc = temp.glibc;` (see 2a).
 - The closure has `lfs-temp-gcc`: the `extraNativeBuildInputs` line of step 9
   is missing.
 - `error: function 'anonymous lambda' called with unexpected argument`: part
