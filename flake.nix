@@ -20,6 +20,8 @@
           lfsStdenvFinal = import ./lfs-stdenv-final { inherit pkgs nixpkgs temp final; };
           helloFinal = (pkgs.callPackage ./lfs-stdenv/hello { stdenv = lfsStdenvFinal; })
               .overrideAttrs { pname = "lfs-final-hello"; };
+          distro = import ./lfs-distro { inherit pkgs nixpkgs toolchain final lfsStdenvFinal; };
+          inherit (distro) kernel;
         };
     };
 }
