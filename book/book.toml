@@ -1,5 +1,5 @@
 [book]
-title = "Linux from scratch with Nix"
+title = "Linux From Scratch with Nix"
 authors = ["Cristian Bidea", "Anthropic Claude Opus 5.5", "DeepSeek v4.1 Flash"]
 language = "en"
 src = "src"

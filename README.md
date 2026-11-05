@@ -1,4 +1,4 @@
-# Linux from scratch with Nix
+# Linux From Scratch with Nix
 
 A Nix implementation of the *interesting* half of Linux From Scratch: build a
 Linux toolchain from source, use it to build a Nix `stdenv` that contains no

@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" role="img" aria-labelledby="t d">
-  <title id="t">Linux from scratch with Nix</title>
+  <title id="t">Linux From Scratch with Nix</title>
   <desc id="d">By Cristian Bidea, Anthropic Claude Opus 5.5 and DeepSeek v4.1 Flash. Learn Nix with a great hands-on project!</desc>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
@@ -22,8 +22,8 @@
 
   <!-- title -->
   <text x="450" y="118" text-anchor="middle" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="20" letter-spacing="6" fill="#7ebae4">A HANDS-ON BOOK</text>
-  <text x="450" y="228" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="86" font-weight="700" fill="#ffffff">Linux from scratch</text>
-  <text x="450" y="322" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="86" font-weight="700" fill="#7ebae4">with Nix</text>
+  <text x="450" y="228" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="80" font-weight="700" fill="#ffffff">Linux From Scratch</text>
+  <text x="450" y="322" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="80" font-weight="700" fill="#7ebae4">with Nix</text>
   <line x1="330" y1="368" x2="570" y2="368" stroke="#7ebae4" stroke-opacity="0.5" stroke-width="2"/>
 
   <!-- a dependency graph: many sources converge into one system -->
