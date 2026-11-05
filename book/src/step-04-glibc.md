@@ -7,8 +7,40 @@ immutable, so you cannot install into one and add to it later. This step
 builds glibc into its own path with an FHS layout (`/usr/lib`,
 `/usr/include`). Step 5 merges it with the headers.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **Platforms.** `stdenv.buildPlatform.config` is the triple of the machine
+  that runs the build. stdenv adds `--build` and `--host` itself.
+  `configurePlatforms = [ ];` stops that, and you give the flags.
+  [More](appendix-nix-concepts.md#platforms-build-host-target).
+- **`stdenv` and `stdenvNoCC`.** `stdenvNoCC` has no C compiler. glibc needs a
+  build compiler for its helper programs, so use `stdenv`.
+  [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+- **The variables of stdenv.** stdenv exports `CC=gcc`, `AR=ar` and other tool
+  variables for each build. They name the host tools. [More](appendix-nix-concepts.md#attributes-and-environment-variables).
+- **`installFlags` and `placeholder "out"`.**
+  `installFlags = [ "DESTDIR=${placeholder "out"}" ];` adds the flag to
+  `make install` only. [More](appendix-nix-concepts.md#out-and-placeholder-out).
+- **The fixup phase.** After the install, stdenv strips binaries, shrinks
+  `RPATH` and rewrites `#!` lines. `dontStrip`, `dontPatchELF` and
+  `dontPatchShebangs` turn each part off.
+  [More](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs).
+- **References in any byte.** The reference scan reads all bytes, also debug
+  sections. A store path in debug info is a reference.
+  [More](appendix-nix-concepts.md#references-and-closures).
+
+From earlier steps: [`$out`](appendix-nix-concepts.md#out-and-placeholder-out) (step 1), [`nativeBuildInputs`](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path) (step 1), [a package in a string](appendix-nix-concepts.md#nix-language) (step 2).
+
+---
+
 **Do:** write a derivation with these parts:
 
+- The file is a function of
+  `{ stdenv, fetchurl, bison, python3, perl, binutils, gccStage1, headers, triple }`.
+  Add the attribute:
+  `glibc = callPackage ./glibc { inherit triple binutils gccStage1 headers; };`.
 - `pname = "lfs-glibc"`, version `2.40`, source
   `mirror://gnu/glibc/glibc-2.40.tar.xz`.
 - `stdenv`, not `stdenvNoCC`. When `build` differs from `host`, glibc
@@ -40,7 +72,7 @@ builds glibc into its own path with an FHS layout (`/usr/lib`,
 
   ```
   --prefix=/usr
-  --host=aarch64-lfs-linux-gnu
+  --host=${triple}
   --build=${stdenv.buildPlatform.config}
   --enable-kernel=4.19
   --with-headers=${headers}/usr/include
@@ -90,6 +122,3 @@ target are both aarch64.
   gcc: debug info holds their store paths. Check the `-fdebug-prefix-map` flags
   in `CFLAGS`. To find the section, run `readelf -p .debug_line_str` on
   `libc.so.6`.
-
-**Nix concepts:** [fixup phase](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs),
-[platforms](appendix-nix-concepts.md#platforms-build-host-target), [`placeholder "out"`](appendix-nix-concepts.md#out-and-placeholder-out).

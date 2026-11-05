@@ -2,6 +2,21 @@
 
 **File to write:** `lfs-distro/initrd/default.nix`, attribute `initrd`
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **`closureInfo`.** `makeInitrd` uses `closureInfo` to find the closure of
+  each object, and copies it into the archive.
+  [More](appendix-nix-concepts.md#closureinfo).
+- **Compressed outputs hide references.** The reference scan looks for
+  hashes in the bytes. In a compressed file it finds none.
+  [More](appendix-nix-concepts.md#references-and-closures).
+
+From earlier steps: [`nix shell`](appendix-nix-concepts.md#flakes) (step 8).
+
+---
+
 **Do:** use the nixpkgs helper `makeInitrd`. It copies the closure of each
 object into `/nix/store` and creates the symlinks.
 
@@ -66,6 +81,3 @@ libc built by your own toolchain.
 | `Kernel panic - not syncing: No working init found` | `/init` is missing, not executable, or its shebang path is not in the archive. |
 | `Attempted to kill init` | PID 1 exited. Check that `/init` ends with `exec /sbin/init`. |
 | `can't open /dev/ttyAMA0` | `/etc/rc` did not mount `/dev`. |
-
-**Nix concepts:** [compressed outputs hide references](appendix-nix-concepts.md#references-and-closures),
-[`closureInfo`](appendix-nix-concepts.md#closureinfo).

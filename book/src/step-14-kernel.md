@@ -2,6 +2,27 @@
 
 **File to write:** `lfs-distro/kernel/default.nix`, attribute `kernel`, pname `lfs-final-linux`
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **`mkDerivation` of a given stdenv.** `lfsStdenvFinal.mkDerivation { … }`
+  uses your stdenv directly, without `callPackage`.
+  [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+- **The attributes of a derivation.** A derivation is a set. `headers.src`
+  is the source of step 3. [More](appendix-nix-concepts.md#nix-language).
+- **Attributes are environment variables.** `KBUILD_BUILD_USER = "lfs";`
+  sets the variable `KBUILD_BUILD_USER` in the build.
+  [More](appendix-nix-concepts.md#attributes-and-environment-variables).
+- **`patchShebangs` and `$NIX_BUILD_CORES`.** `patchShebangs scripts` rewrites
+  the `#!` lines of a directory now, not in the fixup phase.
+  `$NIX_BUILD_CORES` is the number of cores for `make -j`.
+  [More](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs).
+
+From earlier steps: [your own phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases) (step 3), [`nativeBuildInputs`](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path) (step 1), [`with`](appendix-nix-concepts.md#nix-language) (step 9), [reproducibility](appendix-nix-concepts.md#reproducibility) (step 12).
+
+---
+
 **Do:**
 
 - `lfsStdenvFinal.mkDerivation`. Reuse the source of step 3: `src = headers.src;`.
@@ -36,7 +57,3 @@ $ grep -a -o 'Linux version [^)]*)' result-kernel/Image | head -1
 - `openssl/...h: No such file`: add `openssl.dev` to `nativeBuildInputs`, or
   disable the option that needs it with `scripts/config --disable <OPTION>`.
 - A script fails with `bad interpreter`: run `patchShebangs` on that directory too.
-
-**Nix concepts:** [phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases),
-[`nativeBuildInputs`](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path),
-[reproducibility](appendix-nix-concepts.md#reproducibility).

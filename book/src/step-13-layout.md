@@ -1,5 +1,11 @@
 # Step 13 — the rule and the layout (read, no build)
 
+**Nix concepts for this step**
+
+From earlier steps: [closures](appendix-nix-concepts.md#references-and-closures) (step 1), [`nix shell`](appendix-nix-concepts.md#flakes) (step 8).
+
+---
+
 **The rule for Part 4.** nixpkgs can build and run *tools*: the kernel's build
 tools, the initramfs and disk-image builders, and QEMU. Every file *inside the
 image*, and the kernel, comes from `lfsStdenvFinal`. Step 20 checks this.
@@ -40,6 +46,3 @@ $ tart stop lfs; tart run lfs --no-graphics --nested &
 $ ls -l /dev/kvm                                   # exists; without it QEMU emulates (slower, still works)
 $ nix shell nixpkgs#qemu -c qemu-system-aarch64 --version | head -1
 ```
-
-**Nix concepts:** [closures](appendix-nix-concepts.md#references-and-closures),
-[`nix shell`](appendix-nix-concepts.md#flakes).

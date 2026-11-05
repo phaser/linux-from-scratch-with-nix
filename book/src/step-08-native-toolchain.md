@@ -3,6 +3,26 @@
 **Files to write:** `lfs-temp/glibc/`, `lfs-temp/binutils/` and `lfs-temp/gcc/`,
 each with a `default.nix`
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **Patches.** `patches = [ ./no-sys-dirs.patch ];` applies a diff after the
+  unpack phase. The patch is a file of the repo, so git must track it.
+  [More](appendix-nix-concepts.md#patches).
+- **`builtins.getFlake`.** Loads a flake inside Nix code. Step 8 uses it to
+  find the nixpkgs source:
+  `nix eval --raw --impure --expr '(builtins.getFlake (toString ./.)).inputs.nixpkgs.outPath'`.
+  [More](appendix-nix-concepts.md#flakes).
+- **`nix shell`.** `nix shell nixpkgs#gnupatch -c patch …` runs a program
+  from nixpkgs without an install. [More](appendix-nix-concepts.md#flakes).
+- **`path` from `callPackage`.** `path` is the nixpkgs source. A file can use
+  `"${path}/pkgs/…"`. [More](appendix-nix-concepts.md#callpackage).
+
+From earlier steps: [flakes see only tracked files](appendix-nix-concepts.md#flakes) (step 0), [multiple outputs](appendix-nix-concepts.md#multiple-outputs-libgetdev-libgetlib) (step 2), [the fixup phase](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs) (step 4), [the helper and `//`](appendix-nix-concepts.md#function-arguments) (step 7).
+
+---
+
 ## What this step makes, and why
 
 Step 9 makes a Nix stdenv from your own tools. A stdenv needs a libc, binutils
@@ -374,6 +394,3 @@ compile and link needs the wrappers of step 9.
   nixpkgs uses with your gcc version.
 - `error: path '.../no-sys-dirs.patch' does not exist`: git does not track the
   file. Run `git add`.
-
-**Nix concepts:** [multiple outputs](appendix-nix-concepts.md#multiple-outputs-libgetdev-libgetlib),
-[patches](appendix-nix-concepts.md#patches).

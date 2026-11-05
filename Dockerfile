@@ -1,34 +1,7 @@
-# Step 0b of the book: a container replacement for the Step 0a VM: aarch64 Linux + Nix with the sandbox on.
-#
-# Build (no context needed; the repo is mounted at run time):
-#   docker build -t lfs-nix - < Dockerfile
-#
-# Run from the repo root:
-#   docker run --rm -it --privileged \
-#     -v lfs-nix-store:/nix \
-#     -v "$PWD":/work \
-#     lfs-nix
-#
-# Then, inside the container:
-#   nix build .#binutils -o result-binutils -L
-#
-# --privileged: the Nix sandbox (the "chroot" of this project) needs mount and
-#   user namespaces. Without it, every build fails (sandbox-fallback = false).
-# lfs-nix-store: a named volume, so the store survives between containers. It is
-#   on the Linux side of Docker, so it is case-sensitive (kernel headers need that).
-#   On first use Docker copies the image's /nix into it. After you rebuild the
-#   image, remove it: docker volume rm lfs-nix-store
-# /work: the repo from the Mac. Nix copies the flake into the store, so the
-#   case-insensitive macOS file system does not matter. result-* links point
-#   into the volume, so they work only inside the container.
-#
-# Part 4 (QEMU): use -accel tcg -cpu max unless /dev/kvm exists in the container.
-# Give the Docker VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
-
 FROM ubuntu:24.04
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl git xz-utils \
+ && apt-get install -y --no-install-recommends ca-certificates curl file git xz-utils \
  && rm -rf /var/lib/apt/lists/*
 
 # --init none: no systemd in a container, so there is no daemon.

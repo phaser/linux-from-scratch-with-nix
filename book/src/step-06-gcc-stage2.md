@@ -5,6 +5,18 @@
 This is a full cross compiler: C and C++, linked against your glibc through the
 sysroot. It follows crosstool-ng's "final gcc" more than LFS.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **`linkFarm`.** `linkFarm "lfs-toolchain" [ { name = "binutils"; path = binutils; } … ]`
+  makes one directory with a named symlink to each package. Building it builds
+  all of them. [More](appendix-nix-concepts.md#trivial-builders-runcommand-buildenv-symlinkjoin).
+
+From earlier steps: [a package in a string](appendix-nix-concepts.md#nix-language) (step 2): `--with-sysroot=${sysroot}`, [`callPackage`](appendix-nix-concepts.md#callpackage) (step 1), [debugging a build](appendix-nix-concepts.md#debugging-a-build) (step 2).
+
+---
+
 **Do:** copy your `lfs-toolchain/gcc-stage1/default.nix`, then change it:
 
 - `pname = "lfs-gcc-stage2"`.
@@ -12,6 +24,9 @@ sysroot. It follows crosstool-ng's "final gcc" more than LFS.
   `--disable-threads` and the `--disable-lib*` flags.
 - Add `--with-sysroot=${sysroot}` and
   `--with-native-system-header-dir=/usr/include`.
+- Add `sysroot` to the arguments of the function, and give it in
+  `lfs-toolchain/default.nix`:
+  `gccStage2 = callPackage ./gcc-stage2 { inherit triple binutils sysroot; };`.
 - Use `--enable-languages=c,c++`.
 
 **Verify:** write this test program:
@@ -62,6 +77,3 @@ toolchain.
 built, producing a binary that runs.
 
 **If it fails:** `libsanitizer` errors: add `--disable-libsanitizer`.
-
-**Nix concepts:** [`callPackage` and `override`](appendix-nix-concepts.md#callpackage),
-[debugging a build](appendix-nix-concepts.md#debugging-a-build).

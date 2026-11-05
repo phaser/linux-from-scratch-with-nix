@@ -7,6 +7,30 @@
 The chicken-and-egg compiler: `--without-headers --with-newlib` means "there is
 no libc, do not look for one". It can emit object files and cannot link.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **`nativeBuildInputs` and `PATH`.** For each input, stdenv adds one
+  directory to `PATH`, and only that one. Hint 1 shows which directory.
+  [More](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path).
+- **A package in a string.** `"${binutils}/tools/bin"` gives the store path
+  of `binutils` and makes it an input of the build. You can use it in
+  `preConfigure` and in configure flags. [More](appendix-nix-concepts.md#nix-language).
+- **Multiple outputs.** One package can have several store paths: `out`,
+  `dev` (headers), `lib` (libraries). `lib.getDev gmp` gives the `dev` output,
+  `lib.getLib gmp` the `lib` output. [More](appendix-nix-concepts.md#multiple-outputs-libgetdev-libgetlib).
+- **Hardening flags.** The nixpkgs cc-wrapper adds flags such as
+  `-Werror=format-security`. `hardeningDisable = [ "format" ];` removes one.
+  [More](appendix-nix-concepts.md#hardening-flags).
+- **Debugging a build.** `-L` shows the log during the build. `nix log` shows
+  it after. `--keep-failed` keeps the build directory.
+  [More](appendix-nix-concepts.md#debugging-a-build).
+
+From earlier steps: [`stdenv.mkDerivation` and phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases) (step 1), [`callPackage`](appendix-nix-concepts.md#callpackage) (step 1), [fixed-output derivations](appendix-nix-concepts.md#fixed-output-derivations) (step 1).
+
+---
+
 **Do:** write a derivation that meets these requirements.
 
 1. The file is a function of
@@ -84,20 +108,13 @@ $ $G1/$T-gcc -print-sysroot                       # empty line: no sysroot
 $ $G1/$T-gcc -print-libgcc-file-name              # a libgcc.a path inside result-gcc1
 $ $G1/$T-gcc -c /tmp/hello.c -o /tmp/hello.o && file /tmp/hello.o
                                                   # ELF 64-bit LSB relocatable, ARM aarch64
-$ $B/$T-readelf -p .comment /tmp/hello.o          # GCC: (GCC) 14.2.0
+$ $B/$T-readelf -p .comment /tmp/hello.o          # GCC: (GNU) 14.2.0
 $ echo '#include <stdio.h>' | $G1/$T-gcc -E -     # FAILS: stdio.h: No such file or directory
 $ $G1/$T-gcc /tmp/hello.c -o /tmp/hello           # FAILS: cannot find crt1.o ... cannot find -lc
 ```
 
 The last two checks **must fail**. If they succeed, the compiler found a libc
 from the host, and the exercise is void.
-
-**Compare with the answer key:**
-
-```console
-$ diff -u solutions/lfs-toolchain/gcc-stage1/default.nix lfs-toolchain/gcc-stage1/default.nix
-$ nix run nixpkgs#nix-diff -- $(nix eval --raw .#solutions.gccStage1.drvPath) $(nix eval --raw .#gccStage1.drvPath)
-```
 
 **If it fails:**
 
@@ -118,8 +135,3 @@ $ nix run nixpkgs#nix-diff -- $(nix eval --raw .#solutions.gccStage1.drvPath) $(
   a warning. A typo such as `--with-gmp-libs` has no effect. Compare your
   flags with `./configure --help`.
 - gmp, mpfr or mpc not found: `nix log` names the missing file. See hint 4.
-
-**Nix concepts:** [`nativeBuildInputs` and `PATH`](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path),
-[multiple outputs](appendix-nix-concepts.md#multiple-outputs-libgetdev-libgetlib),
-[hardening flags](appendix-nix-concepts.md#hardening-flags),
-[debugging a build](appendix-nix-concepts.md#debugging-a-build).

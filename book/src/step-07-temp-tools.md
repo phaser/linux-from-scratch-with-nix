@@ -7,6 +7,36 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
 `initialPath`. The list matches `initialPath` in nixpkgs
 `pkgs/stdenv/linux/stage0.nix`.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **A function that makes derivations.** `lib.nix` is a helper. It takes the
+  attributes of a package and returns a derivation with the common settings
+  added. [More](appendix-nix-concepts.md#function-arguments).
+- **`@args`, `...` and `//`.** `{ pname, ... }@args:` takes any set, and
+  `args` is the whole set. `args // { … }` merges two sets, and the right side
+  wins. [More](appendix-nix-concepts.md#function-arguments).
+- **`or`.** `args.configureFlags or [ ]` gives `[ ]` when the package has no
+  `configureFlags`. [More](appendix-nix-concepts.md#nix-language).
+- **`let`, `rec`, `inherit (x)` and `import`.** `let a = …; in …` defines
+  local names. In `rec { … }`, the attributes can use each other.
+  `inherit (toolchain) triple;` is `triple = toolchain.triple;`.
+  `import ./lib.nix { … }` reads the file and calls its function.
+  [More](appendix-nix-concepts.md#nix-language).
+- **Setup hooks.** `setupHook = "…/setup-hook.sh";` gives the package a shell
+  file that runs in each build that uses the package. The patchelf hook shrinks
+  `RPATH`. [More](appendix-nix-concepts.md#setup-hooks).
+- **Stored paths.** configure writes the absolute paths of tools into
+  scripts. Each path is a reference, and the closure gets the tool.
+  `ac_cv_path_*` variables stop that. [More](appendix-nix-concepts.md#references-and-closures).
+- **`makeFlags`.** A list of arguments for `make`, as `configureFlags` is for
+  `./configure`. [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+
+From earlier steps: [`callPackage`](appendix-nix-concepts.md#callpackage) (step 1), [platforms](appendix-nix-concepts.md#platforms-build-host-target) (step 4), [the fixup phase](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs) (step 4), [trivial builders](appendix-nix-concepts.md#trivial-builders-runcommand-buildenv-symlinkjoin) (step 5).
+
+---
+
 **Do:**
 
 1. Write one helper function for all tools. Its key parts:
@@ -32,7 +62,8 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
    The default `--prefix=$out` stays. The tools use the Nix layout. Static
    linking means that there is no loader path to get wrong.
 
-2. Build the tools one at a time, in this order. `gnumake` is first because
+2. Write one file for each tool, `lfs-temp/<attribute>/default.nix`. After
+   item 4, build them one at a time, in this order. `gnumake` is first because
    it is small and tests the helper. `patchelf` is C++, and the fixup phase
    of every later stdenv needs it.
 
@@ -217,19 +248,22 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
    }
    ```
 
-   `lib.nix` needs `triple`. Add `triple` to the `inherit` line of
-   `lfs-toolchain/default.nix`, so that `toolchain.triple` exists.
+   `lib.nix` needs `triple`. The set of step 0 has it, so `toolchain.triple`
+   exists.
 
 4. Import the set in `flake.nix` as `temp`:
 
    ```nix
    legacyPackages.${system} =
      let toolchain = import ./lfs-toolchain { inherit pkgs; };
-     in toolchain // {
+     in toolchain // rec {
        temp = import ./lfs-temp { inherit pkgs toolchain; };
-       solutions = import ./solutions/lfs-toolchain { inherit pkgs; };
      };
    ```
+
+   `toolchain // rec { … }` keeps the attributes of steps 1 to 6 at the top,
+   so `.#binutils` still works. The new set is `rec`, because steps 9 and 10
+   add attributes that use `temp`. Run `git add lfs-temp`.
 
    `nix build .#temp.gnumake` now builds one tool. `nix build .#temp.tools`
    builds all of them.
@@ -240,7 +274,7 @@ These tools replace the host's `bash`, `coreutils` and so on in the stdenv's
 $ nix build .#temp.coreutils -o result-temp-coreutils -L
 $ file result-temp-coreutils/bin/ls                # ELF 64-bit LSB executable, ARM aarch64, statically linked
 $ result-temp-coreutils/bin/ls --version | head -1 # ls (GNU coreutils) <version>
-$ $B/$T-readelf -p .comment result-temp-coreutils/bin/ls    # GCC: (GCC) 14.2.0  (gcc stage 2)
+$ $B/$T-readelf -p .comment result-temp-coreutils/bin/ls    # GCC: (GNU) 14.2.0  (gcc stage 2)
 $ nix path-info -r ./result-temp-coreutils         # ONE line: the tool itself
 ```
 
@@ -250,8 +284,9 @@ $ nix path-info -r ./result-temp-coreutils         # ONE line: the tool itself
 $ nix build .#temp.tools -o result-temp
 $ env -i PATH=$(readlink -f result-temp)/bin bash -c 'type -P ls sed grep make tar xz patchelf'
                                                    # every path is inside result-temp
-$ for f in result-temp/bin/*; do file -L $f; done | grep -vc 'statically linked'
-                                                   # 0 (scripts such as egrep are fine; check them by hand)
+$ for f in result-temp/bin/*; do file -L $f; done | grep -v 'statically linked' | grep -vc 'shell script'
+                                                   # 0: each program is static. The shell scripts
+                                                   # (egrep, zgrep, ...) are correct.
 ```
 
 **If it fails:**
@@ -266,7 +301,3 @@ $ for f in result-temp/bin/*; do file -L $f; done | grep -vc 'statically linked'
 - `nix path-info -r` shows the toolchain: the binary is not stripped, and its
   debug info holds store paths. Set `STRIP` and `RANLIB` to the `${triple}-`
   tools. The strip hook needs both (`stripDirs: Ranlib command is empty`).
-
-**Nix concepts:** [functions that make derivations](appendix-nix-concepts.md#nix-language),
-[`//` and `@args`](appendix-nix-concepts.md#nix-language),
-[references and closures](appendix-nix-concepts.md#references-and-closures).

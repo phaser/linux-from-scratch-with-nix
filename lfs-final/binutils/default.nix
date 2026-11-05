@@ -29,4 +29,3 @@ stdenv.mkDerivation rec {
         "--enable-default-hash-style=gnu"
     ];
 }
-

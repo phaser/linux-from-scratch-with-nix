@@ -6,6 +6,13 @@
 **Goal:** a stdenv in which no package was built by a host compiler, and in
 which no program is static.
 
+**Nix concepts for this step**
+
+This step has four stages, and each stage uses different Nix concepts. Each
+stage starts with its own list.
+
+---
+
 ## Why build everything again
 
 The packages of steps 7 and 8 work, but each one has a mark of the host:
@@ -42,7 +49,7 @@ runtime closure gets `lfs-temp-gcc`.
 | 3 | 2 | `final.gcc` | 14.2.0 | `lfs-temp/gcc` | See "Stage 2" below. This page shows the full file. |
 | 4 | 3 | `final.gnumake` | 4.4.1 | `lfs-temp/gnumake` | No change. |
 | 5 | 3 | `final.coreutils` | 9.5 | `lfs-temp/coreutils` | Remove `stdbuf` from the `no-install` list, and remove `gl_cv_func_working_mktime`. |
-| 6 | 3 | `final.bash` | 5.2.32 | `lfs-temp/bash` | Remove `CC_FOR_BUILD` and `bash_cv_strtold_broken`. Keep `-fpermissive` and the `sh` link. In `postInstall`, remove the path of `install` from `lib/bash/Makefile.inc` (see the file). |
+| 6 | 3 | `final.bash` | 5.2.32 | `lfs-temp/bash` | Remove `CC_FOR_BUILD` and `bash_cv_strtold_broken`. Keep `-fpermissive` and the `sh` link. In `postInstall`, remove the path of `install` from `lib/bash/Makefile.inc`. See "The other 13 tools". |
 | 7 | 3 | `final.gnused` | 4.9 | `lfs-temp/gnused` | No change. |
 | 8 | 3 | `final.gnugrep` | 3.11 | `lfs-temp/gnugrep` | No change. |
 | 9 | 3 | `final.gawk` | 5.3.0 | `lfs-temp/gawk` | No change. |
@@ -76,7 +83,7 @@ The sources and hashes are the same as in steps 7, 8 and 10.
 Do not use `mkTemp`. Write a smaller helper, or use `stdenv.mkDerivation`
 directly. Set `pname = "lfs-final-<name>"`.
 
-Packages 1 to 17 are built and checked. Stage 4 (package 18) is evaluated, but not built yet.
+All 18 packages, and the four stage stdenvs, are built and checked.
 
 ## Stage 1 — `lfs-final-glibc`
 
@@ -84,6 +91,20 @@ Packages 1 to 17 are built and checked. Stage 4 (package 18) is evaluated, but n
 
 **Goal:** a glibc built by your gcc, that does not read the loader cache of
 the host, and that has no reference to `lfs-temp-glibc`.
+
+**Nix concepts for stage 1**
+
+New:
+
+- **A patch from a URL.** `patches = [ (fetchurl { url = …; hash = …; }) ];`
+  downloads a patch. It is a fixed-output derivation, as a source is. Use a
+  URL with a commit hash, so that the file never changes.
+  [More](appendix-nix-concepts.md#patches).
+- **The variables of the ld-wrapper.** `NIX_DONT_SET_RPATH` and
+  `NIX_NO_SELF_RPATH` stop the rpath flags that the wrapper adds to each link.
+  [More](appendix-nix-concepts.md#attributes-and-environment-variables).
+
+From earlier steps: [patches](appendix-nix-concepts.md#patches) (step 8), [hardening flags](appendix-nix-concepts.md#hardening-flags) (step 2), [references and closures](appendix-nix-concepts.md#references-and-closures) (step 1).
 
 **Do:**
 
@@ -289,6 +310,30 @@ $ LD_DEBUG=libs result-final-glibc/bin/iconv -l 2>&1 | grep -E 'search|trying' |
 **Goal:** a binutils and a gcc that use `lfs-final-glibc`, and a stdenv that
 uses them.
 
+**Nix concepts for stage 2**
+
+New:
+
+- **Default arguments.** `{ pkgs, temp, libc ? temp.glibc }:` gives `libc` a
+  default. A caller that does not give `libc` gets `temp.glibc`. Part 2a uses
+  this, so that `lfsStdenv` does not change. [More](appendix-nix-concepts.md#function-arguments).
+- **A `let` name hides an argument.** In `{ libc ? … }: let libc = …; in …`,
+  the argument has no effect. [More](appendix-nix-concepts.md#function-arguments).
+- **`//` to add arguments.** `{ inherit pkgs nixpkgs temp; } // args` gives the
+  fixed arguments, plus the arguments of each stdenv.
+  [More](appendix-nix-concepts.md#nix-language).
+- **A `rec` set refers to itself.** In `lfs-final/default.nix`, `libc = glibc;`
+  and `inherit binutils gcc;` use other attributes of the same `rec` set.
+  [More](appendix-nix-concepts.md#nix-language).
+- **`makeFlagsArray`.** `makeFlags` splits at each space. For a value with
+  spaces, add it in a hook: `makeFlagsArray+=("CFLAGS_FOR_TARGET=-O2 …")`.
+  [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+- **A hidden evaluation error.** `nix build` can say "does not provide
+  attribute" when the attribute exists, but its evaluation fails. Part 2b shows
+  how to see the real error. [More](appendix-nix-concepts.md#debugging-a-build).
+
+From earlier steps: [`callPackage` with a stdenv](appendix-nix-concepts.md#callpackage) (step 10), [inside a stdenv](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper) (step 9), [`@args` and `//`](appendix-nix-concepts.md#function-arguments) (step 7).
+
 Stage 2 is not the same as stage 1:
 
 | | Stage 1 | Stage 2 |
@@ -306,7 +351,7 @@ start the next part.
 | 2a | Let `lfs-stdenv/default.nix` take arguments. | none |
 | 2b | Make `lfsStdenvFinalGlibc`. Compile `hello` with it. | less than 1 minute |
 | 2c | Build `final.binutils`. | about 1.5 minutes |
-| 2d | Build `final.gcc`. | about 17 minutes |
+| 2d | Build `final.gcc`. | about 30 minutes |
 | 2e | Make `lfsStdenvFinalToolchain`. Compile `hello` with it. | less than 1 minute |
 
 ### 2a — let `lfs-stdenv` take arguments
@@ -658,7 +703,7 @@ one argument.
 **Verify:**
 
 ```console
-$ nix build .#final.gcc -o result-final-gcc -L          # about 17 minutes
+$ nix build .#final.gcc -o result-final-gcc -L          # about 30 minutes
 $ G=result-final-gcc
 $ nix path-info -r ./$G                                 # TWO lines: lfs-final-glibc, lfs-final-gcc
 $ $B/$T-readelf -l $G/bin/gcc | grep interpreter        # ...-lfs-final-glibc-2.40/lib/ld-linux-aarch64.so.1
@@ -731,6 +776,17 @@ Stage 2 is complete. Stage 3 uses `lfsStdenvFinalToolchain`.
 
 **Goal:** the 14 tools of step 7, built by `lfsStdenvFinalToolchain`, as
 `lfs-final-*`.
+
+**Nix concepts for stage 3**
+
+New:
+
+- **An argument can be a function.** `callPackage` gives any value. The
+  optional method in "The other 13 tools" gives a different function with the
+  name `mkTemp`: `pkgs.callPackage dir { mkTemp = mkFinal; }`.
+  [More](appendix-nix-concepts.md#callpackage).
+
+From earlier steps: [`callPackage` with a stdenv](appendix-nix-concepts.md#callpackage) (step 10), [stored paths](appendix-nix-concepts.md#references-and-closures) (step 7), [setup hooks](appendix-nix-concepts.md#setup-hooks) (step 7).
 
 Each tool is one file and one attribute. First do the example below. Then do
 the other 13 tools in the same way.
@@ -851,7 +907,19 @@ $ grep -rl <hash> result-final-bash/                     # the file with the pat
 
 An example: `lib/bash/Makefile.inc` of bash stores the nixpkgs `install`. The
 cc-wrapper of step 9 puts the nixpkgs coreutils first on `PATH`, and configure
-finds `install` there. Stage 4 removes this leak.
+finds `install` there. Stage 4 removes this leak. For bash, keep only the name
+in `postInstall`:
+
+```nix
+postInstall = ''
+  ln -s bash $out/bin/sh
+  sed -i 's|^INSTALL = .*/install|INSTALL = install|' $out/lib/bash/Makefile.inc
+'';
+```
+
+Do not give configure `ac_cv_path_install=install`. A name without a slash
+becomes `../install` in the subdirectories, and `make install` then skips
+about 140 files without an error.
 
 If you do not do item 3, these problems occur:
 
@@ -890,6 +958,26 @@ also changes stage 3. A copy for each tool is clearer. This book uses copies.
 **Files to change:** `lfs-final/default.nix`, `flake.nix`
 
 **Goal:** a stdenv in which each program is `lfs-final-*`.
+
+**Nix concepts for stage 4**
+
+New:
+
+- **Extra arguments of a function.** `wrapCCWith` and `wrapBintoolsWith` end
+  with `// extraArgs`. Each argument that you give replaces the nixpkgs value.
+  [More](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper).
+- **`callPackage` with a file of nixpkgs.**
+  `pkgs.callPackage "${nixpkgs}/pkgs/by-name/ex/expand-response-params/package.nix" { … }`
+  builds a nixpkgs recipe with your stdenv. [More](appendix-nix-concepts.md#callpackage).
+- **`disallowedRequisites`.** A list of packages. The build fails if the
+  closure of the result has one of them. [More](appendix-nix-concepts.md#references-and-closures).
+- **`builtins.attrValues`.** `builtins.attrValues temp` gives the list of all
+  values of the set `temp`. [More](appendix-nix-concepts.md#nix-language).
+- **`overrideAttrs`.** `(callPackage ./hello { … }).overrideAttrs { pname = …; }`
+  changes one attribute of `mkDerivation`, and the file stays the same.
+  [More](appendix-nix-concepts.md#callpackage).
+
+From earlier steps: [inside a stdenv](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper) (step 9), [`with`](appendix-nix-concepts.md#nix-language) (step 9), [setup hooks](appendix-nix-concepts.md#setup-hooks) (step 7).
 
 `lfsStdenvFinalToolchain` still uses programs that are not final:
 
@@ -1076,8 +1164,3 @@ nixpkgs, not programs, and they have no references.
 | `called without required argument 'final'` | The flake line does not give `final`. |
 | `called with unexpected argument 'final'` | The header of `lfs-stdenv-final/default.nix` is still the header of step 9. Use `{ pkgs, nixpkgs, temp, final }:` (part 4b). |
 | `is not allowed to refer to the following paths` | A package of the list is still in the closure. Remove `disallowedRequisites` for one build. Then run `nix why-depends ./result-final-stdenv <path>`. It shows which file refers to the path. |
-
-**Nix concepts:** [stdenv stages](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper),
-[`disallowedRequisites`](appendix-nix-concepts.md#references-and-closures),
-[patches](appendix-nix-concepts.md#patches),
-[fixed-output derivations](appendix-nix-concepts.md#fixed-output-derivations).

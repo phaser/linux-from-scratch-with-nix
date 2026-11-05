@@ -3,15 +3,60 @@
 **File to write:** `lfs-toolchain/binutils/default.nix`, attribute `binutils`
 
 **Read first:** the LFS book, chapter 5, "Binutils - Pass 1"
-(<https://www.linuxfromscratch.org/lfs/view/stable/>).
+(<https://www.linuxfromscratch.org/lfs/view/12.2/>). This book uses the
+versions of LFS 12.2.
 
 The host compiler builds binutils on purpose. This is LFS pass 1. The result
 runs on the host and produces code for the `aarch64-lfs-linux-gnu` triple.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **A package file is a function.** Your file starts with
+  `{ lib, stdenv, fetchurl, triple }:`. `callPackage ./binutils { inherit triple; }`
+  calls it. It gives `lib`, `stdenv` and `fetchurl` from nixpkgs, and you give
+  `triple`. `inherit triple;` is short for `triple = triple;`.
+  [More](appendix-nix-concepts.md#callpackage).
+- **`stdenv.mkDerivation` and phases.** It runs unpack, patch, configure,
+  build, install and fixup. Attributes change a phase:
+  `configureFlags = [ "--disable-nls" ];` adds flags to `./configure`. A hook is
+  a shell fragment that runs before or after a phase:
+  `postInstall = "rm -r $out/share/info";`. Hint 3 names the hook and the
+  attribute that you need.
+  [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+- **Fixed-output derivations.** `fetchurl { url = …; hash = …; }` is the only
+  kind of build with network, because Nix checks the result against the hash.
+  To get the hash, use `hash = lib.fakeHash;` and read the error, or run
+  `nix store prefetch-file <url>`. [More](appendix-nix-concepts.md#fixed-output-derivations).
+- **`$out` and `placeholder "out"`.** `$out` is the store path of the result,
+  in the shell of the build. In Nix code the path is not known yet:
+  `placeholder "out"` stands for it, for example in
+  `"--with-foo=${placeholder "out"}/foo"`. [More](appendix-nix-concepts.md#out-and-placeholder-out).
+- **`nativeBuildInputs`.** The tools that run during the build, for example
+  `nativeBuildInputs = [ texinfo ];`. The sandbox has only these tools and the
+  tools of the stdenv. [More](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path).
+- **Environment variables.** `env.NIX_CFLAGS_COMPILE = "-std=gnu17";` sets a
+  variable for the build. The nixpkgs cc-wrapper adds its value to each
+  compile. [More](appendix-nix-concepts.md#attributes-and-environment-variables).
+- **`meta.platforms`.** `meta.platforms = lib.platforms.linux;` stops a build on
+  another system. [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+- **References and closures.** `nix path-info -r` lists each store path that
+  the result refers to. `nix why-depends` shows why.
+  [More](appendix-nix-concepts.md#references-and-closures).
+- **`nix log`.** `nix log ./result-binutils` shows the log of the build.
+  [More](appendix-nix-concepts.md#debugging-a-build).
+
+From earlier steps: [the store](appendix-nix-concepts.md#the-store) (step 0), [flakes](appendix-nix-concepts.md#flakes) (step 0), [evaluation and build](appendix-nix-concepts.md#evaluation-and-build) (step 0).
+
+---
+
 **Do:** write a derivation that meets these requirements.
 
-1. The file is a function of `{ lib, stdenv, fetchurl, triple }`. Call it from
-   `lfs-toolchain/default.nix` with `callPackage ./binutils { inherit triple; };`.
+1. The file is a function of `{ lib, stdenv, fetchurl, triple }`. Add the
+   attribute to the set in `lfs-toolchain/default.nix`:
+   `binutils = callPackage ./binutils { inherit triple; };`. Then run
+   `git add lfs-toolchain/binutils`.
 2. The source is binutils **2.43** from the GNU mirror (`mirror://gnu/...`).
    The later chapters expect this version.
 3. The build is out of tree, in a `build/` directory, as in LFS.
@@ -71,17 +116,6 @@ $ nix why-depends ./result-binutils $(nix path-info -r ./result-binutils | grep 
 The last two checks show that the host still owns this binary. That is
 expected until step 11.
 
-**Compare with the answer key** (only after your checks pass):
-
-```console
-$ diff -u solutions/lfs-toolchain/binutils/default.nix lfs-toolchain/binutils/default.nix
-$ nix run nixpkgs#nix-diff -- $(nix eval --raw .#solutions.binutils.drvPath) $(nix eval --raw .#binutils.drvPath)
-```
-
-`diff` compares the Nix code. `nix-diff` compares the two build recipes
-(`.drv`): flags, environment and inputs. Two different files can give the same
-recipe. In that case, `nix-diff` prints nothing and the store paths are equal.
-
 **If it fails:**
 
 - After the hash, read the end of the log with `nix log`.
@@ -94,10 +128,3 @@ recipe. In that case, `nix-diff` prints nothing and the store paths are equal.
 - Errors about `bool`, `true`, `false` or old-style function declarations:
   the host compiler is nixpkgs gcc 16.2, which uses C23 by default. Add
   `env.NIX_CFLAGS_COMPILE = "-std=gnu17";`.
-
-**Nix concepts:** [fixed-output derivations](appendix-nix-concepts.md#fixed-output-derivations),
-[`stdenv.mkDerivation` and phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases),
-[`placeholder "out"`](appendix-nix-concepts.md#out-and-placeholder-out),
-[references and closures](appendix-nix-concepts.md#references-and-closures),
-[`callPackage`](appendix-nix-concepts.md#callpackage),
-[evaluation and build](appendix-nix-concepts.md#evaluation-and-build).

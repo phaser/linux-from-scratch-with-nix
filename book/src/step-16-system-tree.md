@@ -3,6 +3,23 @@
 **Files to write:** `lfs-distro/sysenv/`, `lfs-distro/etc/` and `lfs-distro/init/`,
 each with a `default.nix`
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **`buildEnv` and priorities.** `buildEnv { name; paths; pathsToLink; }`
+  makes a tree of symlinks from several packages. When two packages have the
+  same file, the one with the higher priority wins. `lib.lowPrio` lowers the
+  priority. [More](appendix-nix-concepts.md#buildenv-priorities).
+- **`writeScript`.** `pkgs.writeScript "name" "text"` writes one executable
+  file. [More](appendix-nix-concepts.md#trivial-builders-runcommand-buildenv-symlinkjoin).
+- **The parts of a stdenv.** `lfsStdenvFinal.cc` is the wrapped gcc of the
+  stdenv. [More](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper).
+
+From earlier steps: [`runCommand`](appendix-nix-concepts.md#trivial-builders-runcommand-buildenv-symlinkjoin) (step 5), [multi-line strings](appendix-nix-concepts.md#nix-language) (step 3).
+
+---
+
 **Do:** write three derivations.
 
 1. **`sysenv`** (`lfs-final-sysenv`): a `buildEnv` with
@@ -71,6 +88,3 @@ $ readlink -f result-sysenv/bin/gcc                # ...-gcc-wrapper-.../bin/gcc
 $ nix build .#etc -o result-etc && cat result-etc/inittab
 $ result-sysenv/bin/bash -n result-etc/rc && echo syntax ok    # syntax ok
 ```
-
-**Nix concepts:** [trivial builders](appendix-nix-concepts.md#trivial-builders-runcommand-buildenv-symlinkjoin),
-[`buildEnv` priorities](appendix-nix-concepts.md#buildenv-priorities).

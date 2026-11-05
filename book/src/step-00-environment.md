@@ -20,6 +20,29 @@ case-sensitive `/nix`. This step gives two routes. Do one of them:
 | `git push` | From the VM, if it has your key | From the Mac only. The container has no `ssh`. |
 | KVM for QEMU (Part 4) | Yes (`--nested`) | No. Use `-accel tcg -cpu max`. |
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **The store.** Nix keeps each package in `/nix/store`. Step 3 needs a
+  case-sensitive file system, so the store is on the disk of the VM, or in a
+  Docker volume. It is not on the Mac. [More](appendix-nix-concepts.md#the-store).
+- **The sandbox.** Each build runs isolated, with only its declared inputs and
+  no network. `nix config show sandbox` must print `true`. Without the sandbox,
+  a build can use host files, and the checks of this book prove nothing.
+  [More](appendix-nix-concepts.md#the-sandbox).
+- **Flakes.** `.#triple` means "the attribute `triple` of the flake in this
+  directory". Nix looks for it in
+  `legacyPackages.aarch64-linux`. The flake sees only the files that git tracks.
+  [More](appendix-nix-concepts.md#flakes).
+- **Evaluation and build.** `nix eval --raw .#triple` evaluates the code, but
+  builds nothing. The check in "Verify" uses it to prove that the flake
+  evaluates. In step 1, `nix eval --raw .#binutils.drvPath` shows the recipe,
+  a `.drv` file, also without a build.
+  [More](appendix-nix-concepts.md#evaluation-and-build).
+
+---
+
 ## 0a — A Tart VM
 
 **Do** (on the Mac, with Tart):
@@ -59,7 +82,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
    FROM ubuntu:24.04
 
    RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl git xz-utils \
+    && apt-get install -y --no-install-recommends ca-certificates curl file git xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
    # --init none: no systemd in a container, so there is no daemon.
@@ -85,6 +108,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
    | Line | Why |
    |---|---|
    | `ca-certificates curl` | The Nix installer downloads over HTTPS. |
+   | `file` | The checks use `file` to show the type of a program. |
    | `git` | A flake in a git repository needs `git`. Nix reads only the files that git tracks. |
    | `xz-utils` | The installer unpacks a `.tar.xz` file. |
    | `--init none` | A container has no systemd, so the installer must not set up the daemon. |
@@ -109,7 +133,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
 
    volumes:
      nix-store:
-       name: lfs-nix-store       # same volume as the plain docker run command
+       name: lfs-nix-store       # a fixed name: each run uses the same store
    ```
 
    | Line | Why |
@@ -135,8 +159,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
 Some messages are normal:
 
 - `volume "lfs-nix-store" already exists but was not created by Docker Compose`:
-  the volume has a fixed name, so the plain `docker run` command in the
-  `Dockerfile` header uses the same store.
+  the volume has a fixed name. Each `docker compose run` uses the same store.
 - `warning: Git tree '/work' has uncommitted changes`: Nix uses the files as
   they are on disk, also when you did not commit them.
 
@@ -152,6 +175,58 @@ The `result-*` links point into the volume, so they work only in the
 container. On the Mac they show as broken links. Run git commands on the
 Mac. The container has no git identity, no `ssh` and no key.
 
+## The start files
+
+**Files to write:** `flake.nix` and `lfs-toolchain/default.nix`. Copy
+`flake.lock` from this repo, so that you get the same nixpkgs.
+
+Do this in the repo directory: on the Mac for 0b, in the VM for 0a.
+
+1. Write `flake.nix`:
+
+   ```nix
+   {
+     description = "my-linux-distro: a Linux toolchain from source, LFS-style, with Nix";
+
+     inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+
+     outputs = { self, nixpkgs }:
+       let
+         system = "aarch64-linux";
+         pkgs = import nixpkgs { inherit system; };
+       in {
+         # legacyPackages, not packages: legacyPackages can nest (.#temp.gnumake).
+         # Steps 7, 9 and 11 add more attributes here.
+         legacyPackages.${system} = import ./lfs-toolchain { inherit pkgs; };
+       };
+   }
+   ```
+
+2. Write `lfs-toolchain/default.nix`. Steps 1 to 6 add one attribute each:
+
+   ```nix
+   # Your cross toolchain: steps 1 to 6.
+   { pkgs }:
+
+   let
+     inherit (pkgs) callPackage linkFarm;
+     triple = "aarch64-lfs-linux-gnu";
+   in
+   rec {
+     inherit triple;
+   }
+   ```
+
+   The set is `rec`, so that an attribute can use another one: step 2 gives
+   `binutils` to gcc. `triple` is in the set, because later steps use
+   `toolchain.triple`.
+
+3. Make git track the files:
+
+   ```console
+   $ git add flake.nix flake.lock lfs-toolchain
+   ```
+
 ## Verify
 
 Run these checks in the VM (0a) or in the container (0b):
@@ -162,7 +237,7 @@ $ nix --version                              # prints a version
 $ nix config show sandbox                    # true
 $ d=$(mktemp -d -p /nix); touch $d/a $d/A; ls $d | wc -l; rm -r $d    # 2 (case-sensitive)
 $ df -h /nix | tail -1                       # 40G or more available
-$ nix eval --raw .#solutions.binutils.drvPath    # /nix/store/...-lfs-binutils-2.43.drv
+$ nix eval --raw .#triple                    # aarch64-lfs-linux-gnu
 $ ldd --version | head -1                    # the HOST glibc version; write it down for step 6
 ```
 
@@ -185,6 +260,3 @@ case-insensitive.
   Apple silicon Mac.
 - `fatal: detected dubious ownership in repository at '/work'`: the image does
   not have the `safe.directory` line. Build the image again.
-
-**Nix concepts:** [flakes](appendix-nix-concepts.md#flakes), [evaluation and build](appendix-nix-concepts.md#evaluation-and-build),
-[the sandbox](appendix-nix-concepts.md#the-sandbox), [the store](appendix-nix-concepts.md#the-store).

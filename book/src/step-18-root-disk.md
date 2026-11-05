@@ -5,6 +5,19 @@ on a disk.
 
 **File to write:** `lfs-distro/root-image/default.nix`, attribute `rootImage`
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **`callPackage` with a nixpkgs path.**
+  `pkgs.callPackage "${nixpkgs}/nixos/lib/make-ext4-fs.nix" { … }` uses a file
+  of the nixpkgs source that is not a package attribute.
+  [More](appendix-nix-concepts.md#callpackage).
+
+From earlier steps: [`closureInfo`](appendix-nix-concepts.md#closureinfo) (step 17), [multi-line strings](appendix-nix-concepts.md#nix-language) (step 3).
+
+---
+
 **Do:** use the NixOS helper `nixos/lib/make-ext4-fs.nix`. It copies the
 closure of `storePaths` into the image, and `populateImageCommands` adds your
 own files. It runs `mkfs.ext4` under `fakeroot`, so files belong to root.
@@ -54,6 +67,3 @@ Boot again with the same command, then:
 
 **If it fails:** `VFS: Unable to mount root fs`. The kernel has no
 `VIRTIO_BLK` or no `EXT4_FS` built in. Check `result-kernel/config` (step 14).
-
-**Nix concepts:** [`callPackage` with a path](appendix-nix-concepts.md#callpackage),
-[`closureInfo`](appendix-nix-concepts.md#closureinfo).

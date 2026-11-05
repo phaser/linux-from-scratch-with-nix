@@ -1,5 +1,11 @@
 # Step 20 — the proof for the image
 
+**Nix concepts for this step**
+
+From earlier steps: [references and closures](appendix-nix-concepts.md#references-and-closures) (step 1): `nix path-info -r` takes several paths, [`lowPrio`](appendix-nix-concepts.md#buildenv-priorities) (step 16).
+
+---
+
 Run these checks in the VM, not in the guest.
 
 ```console
@@ -16,7 +22,7 @@ $ nix path-info -r ./result-sysenv \
     | xargs -I{} find {} -type f \
     | xargs $B/$T-readelf -p .comment 2>/dev/null \
     | grep -o 'GCC: ([^)]*) [0-9.]*' | sort | uniq -c
-                                                   # only "GCC: (GCC) 14.2.0" (16.2.0 would be nixpkgs)
+                                                   # only "GCC: (GNU) 14.2.0" (16.2.0 would be nixpkgs)
 
 # 4. The kernel too.
 $ grep CONFIG_CC_VERSION_TEXT result-kernel/config # 14.2.0

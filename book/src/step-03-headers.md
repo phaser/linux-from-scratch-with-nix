@@ -8,6 +8,32 @@ glibc needs the shape of the kernel's system call interface. LFS installs the
 headers into `$LFS/usr/include`. Here they go to their own store path, and
 step 5 combines them with glibc.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **Your own phases.** `dontConfigure = true;` skips the configure phase. To
+  replace a phase, write it, and keep its hooks:
+
+  ```nix
+  buildPhase = ''
+      runHook preBuild
+      make
+      runHook postBuild
+  '';
+  ```
+
+  [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+- **Multi-line strings.** `'' … ''` is a string over several lines. Nix
+  removes the common indentation. [More](appendix-nix-concepts.md#nix-language).
+- **SRI hashes.** A hash has the form `sha256-<base64>`.
+  `nix hash convert --hash-algo sha256 --to sri <hex>` converts a hex hash, as
+  the kernel publishes it. [More](appendix-nix-concepts.md#fixed-output-derivations).
+
+From earlier steps: [the sandbox](appendix-nix-concepts.md#the-sandbox) (step 0): a tool that you do not declare is not there, [`nativeBuildInputs`](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path) (step 1).
+
+---
+
 **Do:** write a derivation that meets these requirements.
 
 1. The file is a function of `{ lib, stdenv, fetchurl }`.
@@ -70,16 +96,5 @@ $ nix hash convert --hash-algo sha256 --to sri <hex-from-the-line-above>
                                                   # the same hash as in your file
 ```
 
-**Compare with the answer key:**
-
-```console
-$ diff -u solutions/lfs-toolchain/linux-headers/default.nix lfs-toolchain/linux-headers/default.nix
-$ nix run nixpkgs#nix-diff -- $(nix eval --raw .#solutions.headers.drvPath) $(nix eval --raw .#headers.drvPath)
-```
-
 **If it fails:** a tool is missing from the sandbox. Add it to
 `nativeBuildInputs` (for example `perl`, `bison` or `flex`).
-
-**Nix concepts:** [the sandbox](appendix-nix-concepts.md#the-sandbox),
-[SRI hashes](appendix-nix-concepts.md#fixed-output-derivations),
-[phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases).

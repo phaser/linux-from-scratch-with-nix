@@ -6,6 +6,24 @@
 built it. The package is GNU hello: it is small, it uses `configure` and
 `make`, and it has tests.
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **A stdenv as an argument.** `pkgs.callPackage ./hello { stdenv = lfsStdenv; }`
+  gives your stdenv. An argument that you give replaces the nixpkgs value.
+  [More](appendix-nix-concepts.md#callpackage).
+- **Build-time and runtime closure.** `nix-store -q --references <drv>` lists
+  the inputs of the recipe: what the build needs. `nix path-info -r <out>` lists
+  the closure of the result: what the program needs at run time.
+  [More](appendix-nix-concepts.md#references-and-closures).
+- **`doCheck`.** `doCheck = true;` runs `make check` in the build.
+  [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
+
+From earlier steps: [fixed-output derivations](appendix-nix-concepts.md#fixed-output-derivations) (step 1), [the fixup phase](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs) (step 4), [setup hooks](appendix-nix-concepts.md#setup-hooks) (step 7), [inside a stdenv](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper) (step 9).
+
+---
+
 ## What is new in this step
 
 Until now, every derivation used the nixpkgs `stdenv`. `mkTemp` also uses it:
@@ -157,10 +175,3 @@ $ nix-store -q --references $(nix eval --raw .#hello.drvPath)
   the log. Check `extraNativeBuildInputs` in step 9.
 - `error: path '.../lfs-stdenv/hello/default.nix' does not exist`: git does
   not track the file. Run `git add`.
-
-**Nix concepts:** [build-time and runtime closure](appendix-nix-concepts.md#references-and-closures),
-[`.drv` files](appendix-nix-concepts.md#evaluation-and-build),
-[`callPackage`](appendix-nix-concepts.md#callpackage),
-[fixed-output derivations](appendix-nix-concepts.md#fixed-output-derivations),
-[phases](appendix-nix-concepts.md#stdenvmkderivation-and-phases),
-[the fixup phase](appendix-nix-concepts.md#the-fixup-phase-strip-patchelf-patchshebangs).

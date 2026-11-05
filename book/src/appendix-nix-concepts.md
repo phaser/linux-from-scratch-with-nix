@@ -1,7 +1,9 @@
 # Appendix B — Nix concepts
 
 Each entry says what the concept is, why it matters here, and where to read
-more. Read an entry when a step lists it and you do not know it yet.
+more. The introduction ("Nix basics") gives the minimum. Each step starts
+with a short version of the entries that it uses for the first time. Read
+the full entry here when the short version is not enough.
 
 Main references:
 
@@ -13,11 +15,46 @@ Main references:
 
 ## Nix language
 
-Attribute sets `{ a = 1; }`, functions `{ a, b }: ...`, `let ... in`, `rec`,
-`inherit`, string interpolation `"${x}"`, multi-line strings `'' ... ''`,
-`import ./file.nix`, the update operator `a // b`, and `@args` (the whole
-argument set). Every `.nix` file in this repo is one function.
+Every `.nix` file in this repo is one function. The parts of the language
+that the book uses:
+
+| Syntax | Meaning | First used |
+|---|---|---|
+| `{ a = 1; b = "x"; }` | An attribute set | step 1 |
+| `x: x + 1`, `{ a, b }: a + b` | A function. The second takes a set. See "Function arguments". | step 1 |
+| `f { a = 1; }` | A call. There are no parentheses around arguments. | step 1 |
+| `inherit a b;` | The same as `a = a; b = b;` | step 1 |
+| `inherit (x) a b;` | The same as `a = x.a; b = x.b;` | step 7 |
+| `"--prefix=${p}"` | Interpolation. A package in `${ }` gives its store path, and the package becomes an input. | step 1 |
+| `'' … ''` | A multi-line string. Nix removes the common indentation. | step 3 |
+| `let a = 1; in a + 1` | Local names | step 7 |
+| `rec { a = 1; b = a + 1; }` | A set whose attributes can use each other | step 7 |
+| `a // b` | Merge two sets. The value from `b` wins. | step 7 |
+| `x.a or d` | `x.a`, or `d` if `x` has no `a` | step 7 |
+| `import ./file.nix` | The value of the file (here, always a function) | step 7 |
+| `with temp; [ a b ]` | `[ temp.a temp.b ]` | step 9 |
+| `builtins.attrValues s` | The list of the values of `s` | step 11 |
+
 Read: <https://nix.dev/tutorials/nix-language>.
+
+## Function arguments
+
+```nix
+{ stdenv, fetchurl, name ? "lfs-stdenv", ... }@args: …
+```
+
+- `{ stdenv, fetchurl }:` the function takes a set with these names. A call
+  with another name fails with `called with unexpected argument`. A call
+  without a name fails with `called without required argument`.
+- `name ? "lfs-stdenv"` gives a default. The caller can omit `name`.
+- `...` accepts other names too.
+- `@args` gives the whole set to the body, also the names of `...`. Step 7
+  passes `args` to `mkDerivation`.
+- A `let` name hides an argument with the same name. In
+  `{ libc ? temp.glibc }: let libc = temp.glibc; in …`, the argument has no
+  effect (step 11, part 2a).
+
+Read: <https://nix.dev/tutorials/nix-language>, "Functions".
 
 ## Flakes
 
@@ -27,7 +64,16 @@ package from the nixpkgs flake, without installing it. `flake.lock` pins each in
 hash. `.#binutils` is an *installable*: "this flake,
 that output". Nix looks for `packages.<system>.binutils`, then
 `legacyPackages.<system>.binutils`. Unlike `packages`, `legacyPackages` can
-nest, as in `.#solutions.binutils`. Read: <https://nix.dev/concepts/flakes> and
+nest, as in `.#temp.gnumake`.
+
+A flake in a git repo sees only the files that git tracks. A new file needs
+`git add`. A commit is not necessary. If git does not track the file, Nix
+says that the file or the attribute does not exist.
+`warning: Git tree '/work' has uncommitted changes` is normal.
+
+`builtins.getFlake "git+file:///work"` loads a flake inside Nix code. Step 8
+uses it to find the nixpkgs source. Step 11 uses it to show an error that
+`nix build` hides. Read: <https://nix.dev/concepts/flakes> and
 `nix flake --help`.
 
 ## Evaluation and build
@@ -59,8 +105,10 @@ directory. It has no network. This is the Nix equivalent of the LFS chroot.
 A derivation that declares its output hash in advance, such as `fetchurl`. It
 is the only kind of build that gets network access, because Nix can check the
 result. `lib.fakeHash` is a placeholder that always fails, so Nix prints the
-real hash. Hashes use the SRI format `sha256-<base64>`; `nix hash convert`
-converts from hex. Read: the nixpkgs manual, "Fetchers".
+real hash. `nix store prefetch-file <url>` gives the hash without a build.
+Hashes use the SRI format `sha256-<base64>`; `nix hash convert`
+converts from hex. A patch from a URL (`patches = [ (fetchurl { … }) ]`) is a
+fixed-output derivation too (step 11). Read: the nixpkgs manual, "Fetchers".
 
 ## `stdenv.mkDerivation` and phases
 
@@ -69,8 +117,22 @@ The standard builder. It runs phases in order: `unpackPhase`, `patchPhase`,
 You change a phase with attributes (`configureFlags`, `configureScript`,
 `dontAddPrefix`, `configurePlatforms`, `makeFlags`, `installFlags`,
 `patches`) or hooks (`preConfigure`, `postInstall`). Custom phases must call
-`runHook preX` and `runHook postX`, as `headers.nix` does. Read: the nixpkgs
-manual, "The Standard Environment"; Nix Pill 19.
+`runHook preX` and `runHook postX`, as `headers.nix` does.
+
+More attributes that the book uses:
+
+- `dontConfigure = true;` skips the configure phase, and also `preConfigure`
+  (steps 3 and 7).
+- `doCheck = true;` runs `make check` (step 10).
+- `makeFlags` is a list of `make` arguments. Nix joins the list with spaces
+  and splits it again at each space. For a value with spaces, add it in a hook:
+  `makeFlagsArray+=("CFLAGS=-O2 -g")` (step 11).
+- `meta.platforms = lib.platforms.linux;` stops a build on other systems
+  (step 1).
+- `stdenvNoCC` is a stdenv without a C compiler (step 4).
+- `$NIX_BUILD_CORES` is the number of cores for `make -j` (step 14).
+
+Read: the nixpkgs manual, "The Standard Environment"; Nix Pill 19.
 
 ## Patches
 
@@ -88,6 +150,41 @@ Read: the nixpkgs manual, "The Standard Environment", `patchPhase`.
 In Nix code the path is not known yet; `placeholder "out"` gives a string that
 Nix replaces with the real path. `binutils.nix` uses it in `--prefix`.
 Read: the Nix manual, "Built-in functions", `placeholder`.
+
+## Attributes and environment variables
+
+`mkDerivation` gives each attribute to the build as an environment variable.
+`KBUILD_BUILD_USER = "lfs";` (step 14) and `BASH_SHELL = "/bin/sh";`
+(step 11) work this way. A list becomes one string, with a space between the
+items.
+
+`env.X = "…";` sets the variable `X` explicitly. Use it for names that are
+not attributes of `mkDerivation`, such as `env.NIX_CFLAGS_COMPILE` (step 1).
+
+The nixpkgs wrappers read some `NIX_*` variables at each call:
+
+| Variable | Effect |
+|---|---|
+| `NIX_CFLAGS_COMPILE` | The cc-wrapper adds these flags to each compile. |
+| `NIX_DONT_SET_RPATH` | The ld-wrapper adds no `-rpath` (step 11). |
+| `NIX_NO_SELF_RPATH` | The ld-wrapper does not add `$out/lib` to the rpath (step 11). |
+
+Read: the nixpkgs manual, "The Standard Environment"; the source of
+`pkgs/build-support/cc-wrapper/` and `bintools-wrapper/`.
+
+## Setup hooks
+
+A package can have a `setupHook`: a shell file. stdenv runs it at the start
+of each build that has the package in `nativeBuildInputs`, or in the
+`extraNativeBuildInputs` of the stdenv.
+
+- The patchelf hook runs `patchelf --shrink-rpath` on each ELF file in the
+  fixup phase (steps 7 and 9).
+- The cc-wrapper hook sets `CC` and other variables. It also puts the
+  `coreutils` of the wrapper on `PATH`. That is the leak of step 9.
+
+A package in `initialPath` is only on `PATH`. Its hook does not run (step 9).
+Read: the nixpkgs manual, "Package setup hooks".
 
 ## `nativeBuildInputs`, `buildInputs` and `PATH`
 
@@ -139,8 +236,10 @@ the nixpkgs manual, "The fixup phase".
 
 Small builders for small jobs. `runCommand name env script` runs a shell
 script. `buildEnv` and `symlinkJoin` make a tree of symlinks. Symlinks break
-the sysroot check of `ld` (step 5). Read: the nixpkgs manual, "Trivial build
-helpers".
+the sysroot check of `ld` (step 5). `linkFarm name [ { name = "a"; path = x; } ]`
+makes a directory with one named symlink for each item (step 6).
+`writeScript name text` writes one executable file (step 16). Read: the
+nixpkgs manual, "Trivial build helpers".
 
 ## References and closures
 
@@ -162,7 +261,18 @@ and 12). Read: the Nix manual, `nix path-info` and `nix why-depends`.
 
 `-L` streams logs. `nix log` shows the last log. `--keep-failed` keeps the
 build directory. `nix develop` opens a shell with the build environment, where
-you run phases by hand. Read: nix.dev, "Troubleshooting"; `nix develop --help`.
+you run phases by hand.
+
+Sometimes `nix build .#a.b` says
+`does not provide attribute 'packages.aarch64-linux.a.b'`, but `a.b` exists.
+Nix then hides an evaluation error. Evaluate the attribute directly to see
+the error:
+
+```console
+$ nix eval --impure --raw --expr '(builtins.getFlake "git+file:///work").legacyPackages.aarch64-linux.a.b.drvPath'
+```
+
+Read: nix.dev, "Troubleshooting"; `nix develop --help`.
 
 ## Stdenv internals: setup.sh, initialPath, cc-wrapper
 
@@ -172,7 +282,18 @@ The `cc` is a **wrapper**: a script around the real gcc that adds `-B`,
 `-idirafter`, `-dynamic-linker` and `RPATH` flags for the libc in the store,
 so no sysroot is needed. `bintools-wrapper` does the same for `ld`. nixpkgs
 builds its own stdenv in stages (`pkgs/stdenv/linux/default.nix`): each stage
-uses only the stage before. Read: Nix Pills 12 and 19; the nixpkgs manual,
+uses only the stage before.
+
+`pkgs.wrapCCWith` and `pkgs.wrapBintoolsWith` make the wrappers. They call
+`callPackage` on the wrapper file, so the programs of the wrapper scripts
+(`coreutils`, `gnugrep`, `runtimeShell`, `expand-response-params`) come from
+nixpkgs. Both functions add your arguments last (`// extraArgs`). An argument
+that you give replaces the nixpkgs value (step 11, stage 4).
+
+`genericStdenv` (`pkgs/stdenv/generic`) also takes `extraNativeBuildInputs`
+(packages with a setup hook for each build), `fetchurlBoot` (the `fetchurl`
+of the stdenv itself) and `preHook` (shell code at the start of each build).
+Read: Nix Pills 12 and 19; the nixpkgs manual,
 "The Standard Environment"; the source of `pkgs/build-support/cc-wrapper/`.
 
 ## Fixed points and overlays

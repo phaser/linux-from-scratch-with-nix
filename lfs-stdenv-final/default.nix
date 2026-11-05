@@ -47,4 +47,3 @@ genericStdenv {
     disallowedRequisites = builtins.attrValues temp
         ++ (with pkgs; [ runtimeShellPackage coreutils gnugrep expand-response-params ]);
 }
-

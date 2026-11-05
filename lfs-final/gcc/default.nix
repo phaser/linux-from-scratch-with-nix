@@ -70,4 +70,3 @@ stdenv.mkDerivation rec {
         rm -r $out/libexec/gcc/${triple}/${version}/install-tools
     '';
 }
-

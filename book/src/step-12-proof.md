@@ -1,5 +1,18 @@
 # Step 12 — the proof (milestone 2)
 
+**Nix concepts for this step**
+
+New in this step:
+
+- **Reproducibility.** `nix build --rebuild` builds again and compares the
+  result with the store path. If they differ, `--keep-failed` keeps the second
+  result as `<path>.check`, and `diffoscope` shows the difference.
+  [More](appendix-nix-concepts.md#reproducibility).
+
+From earlier steps: [references and closures](appendix-nix-concepts.md#references-and-closures) (step 1).
+
+---
+
 **Verify:**
 
 ```console
@@ -25,5 +38,3 @@ If check 4 reports a difference, compare the two outputs with `diffoscope`
 **This is milestone 2:** a stdenv in which your own tools built every binary.
 The host still provided the kernel, the Nix daemon and the sandbox `/bin/sh`.
 Those are the limits of way A.
-
-**Nix concepts:** [reproducibility](appendix-nix-concepts.md#reproducibility).
