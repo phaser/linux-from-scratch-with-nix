@@ -19,7 +19,11 @@
             temp = import ./lfs-temp { inherit pkgs toolchain; };
             lfsStdenv = import ./lfs-stdenv { inherit pkgs nixpkgs temp; };
             hello = pkgs.callPackage ./lfs-stdenv/hello { stdenv = lfsStdenv; };
-            final = import ./lfs-final { inherit pkgs toolchain lfsStdenv; };
+            final = import ./lfs-final { inherit pkgs toolchain lfsStdenv nixpkgs temp; };
+            lfsStdenvFinal = import ./lfs-stdenv-final { inherit pkgs nixpkgs temp final; };
+            helloFinal = (pkgs.callPackage ./lfs-stdenv/hello { stdenv = lfsStdenvFinal; })
+                .overrideAttrs { pname = "lfs-final-hello"; };
+
       };
     };
 }

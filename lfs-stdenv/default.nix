@@ -1,13 +1,16 @@
-{ pkgs, nixpkgs, temp }:
+{ pkgs, nixpkgs, temp,
+  name ? "lfs-stdenv",
+  libc ? temp.glibc,
+  binutils ? temp.binutils,
+  gcc ? temp.gcc }:
 let
     inherit (pkgs) lib;
     genericStdenv = import "${nixpkgs}/pkgs/stdenv/generic" { defaultConfig = pkgs.config; };
-    libc = temp.glibc;
-    bintools = pkgs.wrapBintoolsWith { bintools = temp.binutils; inherit libc; };
-    cc = pkgs.wrapCCWith { cc = temp.gcc; inherit bintools libc; };
+    bintools = pkgs.wrapBintoolsWith { bintools = binutils; inherit libc; };
+    cc = pkgs.wrapCCWith { cc = gcc; inherit bintools libc; };
 in
 genericStdenv {
-    name = "lfs-stdenv";
+    inherit name;
     inherit (pkgs.stdenv) buildPlatform hostPlatform targetPlatform;
     config = pkgs.config;
     shell = "${temp.bash}/bin/bash";
