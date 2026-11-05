@@ -5,5 +5,5 @@ language = "en"
 src = "src"
 
 [output.html]
-git-repository-url = "https://github.com/phaser/my-linux-distro"
+git-repository-url = "https://github.com/phaser/linux-from-scratch-with-nix"
 additional-css = ["custom.css"]
