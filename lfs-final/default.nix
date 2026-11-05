@@ -38,4 +38,10 @@ in rec {
     xz        = pkgs.callPackage ./xz { stdenv = lfsStdenvFinalToolchain; };
     bzip2     = pkgs.callPackage ./bzip2 { stdenv = lfsStdenvFinalToolchain; };
     patchelf  = pkgs.callPackage ./patchelf { stdenv = lfsStdenvFinalToolchain; };
+
+    # Stage 4: a program of the wrappers, built by your toolchain.
+    expand-response-params = pkgs.callPackage
+        "${nixpkgs}/pkgs/by-name/ex/expand-response-params/package.nix"
+        { stdenv = lfsStdenvFinalToolchain; };
+
 }

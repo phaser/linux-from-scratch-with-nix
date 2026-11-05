@@ -69,14 +69,14 @@ The sources and hashes are the same as in steps 7, 8 and 10.
   its test programs.
 - **Keep each setting that stops a stored path.** `SHELL=/bin/sh` and the
   `ac_cv_path_*` variables (step 7, reasons 5 and 6) are still necessary. If
-  you remove them, the scripts store a path into `lfs-temp-*`. Item 3 of
-  "Stage 4" finds this.
+  you remove them, the scripts store a path into `lfs-temp-*`. The
+  `disallowedRequisites` check of part 4b finds this.
 - **Keep the LFS settings.**
 
 Do not use `mkTemp`. Write a smaller helper, or use `stdenv.mkDerivation`
 directly. Set `pname = "lfs-final-<name>"`.
 
-Packages 1 to 17 are built and checked. Package 18 is not built yet.
+Packages 1 to 17 are built and checked. Stage 4 (package 18) is evaluated, but not built yet.
 
 ## Stage 1 — `lfs-final-glibc`
 
@@ -176,9 +176,8 @@ the host, and that has no reference to `lfs-temp-glibc`.
    ```
 
    Use the name `final`. If you merge the set at the top, `final.glibc`
-   replaces the `glibc` of step 4. Later steps use `.#lfsStdenvFinal` and
-   `.#helloFinal`. When you write them, add
-   `inherit (final) lfsStdenvFinal helloFinal;` to `flake.nix`.
+   replaces the `glibc` of step 4. Stage 4 adds `lfsStdenvFinal` and
+   `helloFinal` to `flake.nix`.
 
 4. Make git track the new files:
 
@@ -886,27 +885,197 @@ also changes stage 3. A copy for each tool is clearer. This book uses copies.
 
 ## Stage 4 — `lfsStdenvFinal`
 
+**Files to write:** `lfs-stdenv-final/default.nix`
+
+**Files to change:** `lfs-final/default.nix`, `flake.nix`
+
+**Goal:** a stdenv in which each program is `lfs-final-*`.
+
+`lfsStdenvFinalToolchain` still uses programs that are not final:
+
+| Part of the stdenv | In `lfsStdenvFinalToolchain` | In `lfsStdenvFinal` |
+|---|---|---|
+| `shell` | `lfs-temp-bash` | `lfs-final-bash` |
+| `initialPath` | the 14 `lfs-temp-*` tools | the 14 `lfs-final-*` tools |
+| `extraNativeBuildInputs` | `lfs-temp-patchelf` | `lfs-final-patchelf` |
+| The shell of the wrapper scripts | nixpkgs `bash-5.3p20` | `lfs-final-bash` |
+| `coreutils` and `grep` of the wrappers | nixpkgs `coreutils-9.12`, `gnugrep-3.12` | `lfs-final-coreutils`, `lfs-final-gnugrep` |
+| `expand-response-params` of the wrappers | nixpkgs. The nixpkgs gcc built it, so it uses glibc 2.44. | Built by `lfsStdenvFinalToolchain` (part 4a) |
+
+To see the parts that are not yours:
+
+```console
+$ nix path-info -r $(nix build --no-link --print-out-paths .#final.lfsStdenvFinalToolchain) | grep -v lfs-
+```
+
+**Why the wrappers use nixpkgs packages.** `wrapCCWith` and
+`wrapBintoolsWith` call `callPackage` on the wrapper file. `callPackage`
+fills `coreutils`, `gnugrep`, `runtimeShell` and `expand-response-params`
+from nixpkgs. This is the leak of step 9. Both functions add your arguments
+last (`// extraArgs`), so your values replace the nixpkgs values. You do not
+need to change how you call the wrappers. You only give them more arguments.
+
+Do the parts in this sequence:
+
+| Part | What you do |
+|---|---|
+| 4a | Build `expand-response-params` with `lfsStdenvFinalToolchain`. |
+| 4b | Change your copy, `lfs-stdenv-final/default.nix`. |
+| 4c | Add `lfsStdenvFinal` and `helloFinal` to `flake.nix`. Build them. |
+
+### 4a — `expand-response-params`
+
+The wrappers use this small C program to read response files (`@file`
+arguments). It is one C file in nixpkgs. Build it with your toolchain.
+
+**Do:** add this attribute to `lfs-final/default.nix`, after the stage 3
+tools:
+
+```nix
+    # Stage 4: a program of the wrappers, built by your toolchain.
+    expand-response-params = pkgs.callPackage
+        "${nixpkgs}/pkgs/by-name/ex/expand-response-params/package.nix"
+        { stdenv = lfsStdenvFinalToolchain; };
+```
+
+**Verify:**
+
+```console
+$ nix build .#final.expand-response-params -o result-final-erp -L
+$ nix path-info -r ./result-final-erp       # TWO lines: lfs-final-glibc, expand-response-params
+```
+
+### 4b — `lfs-stdenv-final/default.nix`
+
+**Do:** change your copy of `lfs-stdenv/default.nix` to this file:
+
+```nix
+# Stage 4: the stdenv of step 9, with only lfs-final-* packages.
+{ pkgs, nixpkgs, temp, final }:
+let
+    genericStdenv = import "${nixpkgs}/pkgs/stdenv/generic" { defaultConfig = pkgs.config; };
+    libc = final.glibc;
+
+    # The wrapper scripts run these programs. If you do not give them,
+    # wrapCCWith and wrapBintoolsWith take the nixpkgs packages.
+    wrapperTools = {
+        inherit (final) coreutils gnugrep expand-response-params;
+        runtimeShell = "${final.bash}/bin/bash";
+    };
+    bintools = pkgs.wrapBintoolsWith ({ bintools = final.binutils; inherit libc; } // wrapperTools);
+    cc = pkgs.wrapCCWith ({ cc = final.gcc; inherit bintools libc; } // wrapperTools);
+in
+genericStdenv {
+    name = "lfs-stdenv-final";
+    inherit (pkgs.stdenv) buildPlatform hostPlatform targetPlatform;
+    config = pkgs.config;
+    shell = "${final.bash}/bin/bash";
+    initialPath = with final; [
+        coreutils
+        findutils
+        diffutils
+        gnused
+        gnugrep
+        gawk
+        gnutar
+        gzip
+        xz
+        bzip2
+        gnumake
+        bash
+        gnupatch
+        patchelf
+    ];
+
+    fetchurlBoot = import "${nixpkgs}/pkgs/build-support/fetchurl/boot.nix" {
+        inherit (pkgs.stdenv.hostPlatform) system;
+        inherit (pkgs.config) rewriteURL;
+    };
+    extraNativeBuildInputs = [ final.patchelf ];
+    inherit cc;
+    preHook = "dontPatchShebangs=1";
+
+    # The build of the stdenv fails if it refers to one of these packages.
+    disallowedRequisites = builtins.attrValues temp
+        ++ (with pkgs; [ runtimeShellPackage coreutils gnugrep expand-response-params ]);
+}
+```
+
+The changes from `lfs-stdenv/default.nix`:
+
+| `lfs-stdenv/default.nix` | `lfs-stdenv-final/default.nix` | Why |
+|---|---|---|
+| `{ pkgs, nixpkgs, temp, name ? …, libc ? …, binutils ? …, gcc ? … }:` | `{ pkgs, nixpkgs, temp, final }:` | Only one stdenv uses this file. It needs no defaults. `final` is the set of `lfs-final/default.nix`. |
+| `inherit (pkgs) lib;` | Removed | The file does not use `lib`. |
+| — | `libc = final.glibc;` | Both wrappers use it. |
+| — | `wrapperTools = { … };` | The four programs of the wrappers. See "Why the wrappers use nixpkgs packages". |
+| `wrapBintoolsWith { bintools = binutils; inherit libc; }` | `wrapBintoolsWith ({ bintools = final.binutils; inherit libc; } // wrapperTools)` | `//` adds the four programs to the arguments. |
+| `wrapCCWith { cc = gcc; inherit bintools libc; }` | `wrapCCWith ({ cc = final.gcc; inherit bintools libc; } // wrapperTools)` | The same. |
+| `inherit name;` | `name = "lfs-stdenv-final";` | No `name` argument now. |
+| `temp.bash`, `with temp;`, `temp.patchelf` | `final.bash`, `with final;`, `final.patchelf` | The shell, the 14 tools and the patchelf hook are final. |
+| — | `disallowedRequisites` | A check. See below. |
+
+`runtimeShell` is a path, not a package. nixpkgs gives
+`"${bash}/bin/bash"`. Give the same form.
+
+**`disallowedRequisites`.** Nix examines the closure of the stdenv after the
+build. If a path of the list is in it, the build fails. The list has:
+
+- each `lfs-temp-*` package: `builtins.attrValues temp` gives all values of
+  the `temp` set.
+- the four nixpkgs programs of the leak. Use `runtimeShellPackage`, not
+  `bash`: `pkgs.bash` is `bash-interactive`, but `runtimeShell` is
+  `bash-5.3p20`.
+
+The stdenv still has `temp` as an argument, but only for this check.
+
+### 4c — `flake.nix` and the last check
+
 **Do:**
 
-1. `lfsStdenvFinal`: like step 9, but call `pkgs/build-support/cc-wrapper` and
-   `bintools-wrapper` directly, as `stageFun` does. Pass `coreutils`,
-   `gnugrep` and `runtimeShell` from the `lfs-final-*` set. That removes the
-   wrapper leak from step 9. Use only `lfs-final-*` packages in `shell`,
-   `initialPath` and `extraNativeBuildInputs`.
-2. `helloFinal`: `lfs-stdenv/hello` with `stdenv = lfsStdenvFinal`.
-3. Set `disallowedRequisites` on `lfsStdenvFinal` to every `lfs-` and
-   `lfs-temp-` package. The build then fails if one of them leaks in.
+1. Add two lines to `flake.nix`, after the `final = …` line:
+
+   ```nix
+   lfsStdenvFinal = import ./lfs-stdenv-final { inherit pkgs nixpkgs temp final; };
+   helloFinal = (pkgs.callPackage ./lfs-stdenv/hello { stdenv = lfsStdenvFinal; })
+       .overrideAttrs { pname = "lfs-final-hello"; };
+   ```
+
+   `final` comes from the same `rec` set of the flake. `overrideAttrs`
+   changes only the name. The file of step 10 does not change.
+
+2. Make git track the new file:
+
+   ```console
+   $ git add lfs-stdenv-final
+   ```
 
 **Verify:**
 
 ```console
 $ nix build .#lfsStdenvFinal -o result-final-stdenv -L
+$ nix path-info -r ./result-final-stdenv | grep -v -e lfs-final- -e lfs-stdenv-final -e expand-response-params -e '\.sh$'
+                                                   # no output
 $ nix build .#helloFinal -o result-final-hello -L
 $ result-final-hello/bin/hello                     # Hello, world!
+$ nix path-info -r ./result-final-hello            # TWO lines: lfs-final-glibc, lfs-final-hello
 $ $B/$T-readelf -l result-final-hello/bin/hello | grep interpreter    # ...-lfs-final-glibc-2.40/...
 $ LD_DEBUG=libs result-final-hello/bin/hello 2>&1 | grep 'search cache'
                                                    # no output, or only ...-lfs-final-glibc-2.40/etc/ld.so.cache
 ```
+
+The files that end in `.sh` are the setup hooks of
+`pkgs/stdenv/generic` (for example `strip.sh`). They are source files of
+nixpkgs, not programs, and they have no references.
+
+**If it fails:**
+
+| You see | The cause |
+|---|---|
+| `attribute 'expand-response-params' missing` | Part 4a is not done. |
+| `called without required argument 'final'` | The flake line does not give `final`. |
+| `called with unexpected argument 'final'` | The header of `lfs-stdenv-final/default.nix` is still the header of step 9. Use `{ pkgs, nixpkgs, temp, final }:` (part 4b). |
+| `is not allowed to refer to the following paths` | A package of the list is still in the closure. Remove `disallowedRequisites` for one build. Then run `nix why-depends ./result-final-stdenv <path>`. It shows which file refers to the path. |
 
 **Nix concepts:** [stdenv stages](appendix-nix-concepts.md#stdenv-internals-setupsh-initialpath-cc-wrapper),
 [`disallowedRequisites`](appendix-nix-concepts.md#references-and-closures),
