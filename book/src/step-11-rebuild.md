@@ -69,14 +69,14 @@ The sources and hashes are the same as in steps 7, 8 and 10.
   its test programs.
 - **Keep each setting that stops a stored path.** `SHELL=/bin/sh` and the
   `ac_cv_path_*` variables (step 7, reasons 5 and 6) are still necessary. If
-  you remove them, the scripts store a path into `lfs-temp-*`. Item 4 of
-  "Stages 3 and 4" finds this.
+  you remove them, the scripts store a path into `lfs-temp-*`. Item 3 of
+  "Stage 4" finds this.
 - **Keep the LFS settings.**
 
 Do not use `mkTemp`. Write a smaller helper, or use `stdenv.mkDerivation`
 directly. Set `pname = "lfs-final-<name>"`.
 
-Packages 1 to 3 are built and checked. The other rows of the table follow
+Packages 1, 2, 3 and 5 (coreutils) are built and checked. The other rows of the table follow
 from steps 7, 8 and 10, but they are not built yet.
 
 ## Stage 1 — `lfs-final-glibc`
@@ -729,19 +729,159 @@ no part of the compiler is `lfs-temp-*`.
 
 Stage 2 is complete. Stage 3 uses `lfsStdenvFinalToolchain`.
 
-## Stages 3 and 4
+## Stage 3 — the 14 tools
+
+**Goal:** the 14 tools of step 7, built by `lfsStdenvFinalToolchain`, as
+`lfs-final-*`.
+
+Each tool is one file and one attribute. First do the example below. Then do
+the other 13 tools in the same way.
+
+### Example: `final.coreutils`
 
 **Do:**
 
-1. Build the 14 tools of "The packages" (rows 4 to 17) with
-   `stdenv = lfsStdenvFinalToolchain`.
-2. `lfsStdenvFinal`: like step 9, but call `pkgs/build-support/cc-wrapper` and
+1. Write `lfs-final/coreutils/default.nix`:
+
+   ```nix
+   { stdenv, fetchurl }:
+
+   stdenv.mkDerivation rec {
+       pname = "lfs-final-coreutils";
+       version = "9.5";
+
+       src = fetchurl {
+           url = "mirror://gnu/coreutils/coreutils-${version}.tar.xz";
+           hash = "sha256-zTKO3qyS9qZl3p8yPJO3Eq8YWLwuDYjz9xAEaUcKG4o=";
+       };
+
+       configureFlags = [
+           "--enable-install-program=hostname"          # LFS
+           "--enable-no-install-program=kill,uptime"    # LFS
+       ];
+   }
+   ```
+
+2. Add the attribute to `lfs-final/default.nix`, after
+   `lfsStdenvFinalToolchain`:
+
+   ```nix
+   # Stage 3: built by lfsStdenvFinalToolchain.
+   coreutils = pkgs.callPackage ./coreutils { stdenv = lfsStdenvFinalToolchain; };
+   ```
+
+3. Make git track the new file:
+
+   ```console
+   $ git add lfs-final/coreutils
+   ```
+
+The changes from step 7 (`lfs-temp/coreutils/default.nix`):
+
+| Step 7 | Stage 3 | Why |
+|---|---|---|
+| `{ fetchurl, mkTemp }:` | `{ stdenv, fetchurl }:` | `stdenv` comes from the attribute: `lfsStdenvFinalToolchain`. |
+| `mkTemp rec {` | `stdenv.mkDerivation rec {` | `mkTemp` adds `--host`, `--build`, `-static` and the cross `PATH`. Stage 3 needs none of them. |
+| `pname = "coreutils"` | `pname = "lfs-final-coreutils"` | `mkTemp` added `lfs-temp-`. Now you write the full name. |
+| `kill,uptime,stdbuf` | `kill,uptime` | `stdbuf` loads `libstdbuf.so`. A static build cannot do that. Now the programs are not static. |
+| `gl_cv_func_working_mktime=yes` | Removed | In a cross build, configure cannot run its test program, so step 7 gave the answer. Now configure runs the test. |
+
+`src` and `version` do not change. `dontPatchShebangs` also comes from the
+stdenv (the `preHook` of step 9).
+
+**Verify:**
+
+```console
+$ nix build .#final.coreutils -o result-final-coreutils -L      # about 1 minute
+$ R=result-final-coreutils
+$ nix path-info -r ./$R                                 # TWO lines: lfs-final-glibc, lfs-final-coreutils
+$ $B/$T-readelf -l $R/bin/ls | grep interpreter         # ...-lfs-final-glibc-2.40/lib/ld-linux-aarch64.so.1
+$ $B/$T-readelf -d $R/bin/ls | grep -E 'NEEDED|RUNPATH'
+                                                        # libc.so.6, ld-linux-aarch64.so.1
+                                                        # RUNPATH ...-lfs-final-glibc-2.40/lib
+$ $B/$T-readelf -p .comment $R/bin/ls                   # GCC: (GNU) 14.2.0
+$ $R/bin/ls --version | head -1                         # ls (GNU coreutils) 9.5
+$ $R/bin/stdbuf -oL $R/bin/echo ok                      # ok
+$ ls $R/libexec/coreutils                               # libstdbuf.so
+$ nix log ./$R | grep -E 'cross compiling|working mktime'
+                                                        # checking whether we are cross compiling... no
+                                                        # checking for working mktime... yes
+```
+
+| Check | It proves |
+|---|---|
+| `nix path-info -r` | No path of `lfs-temp-*` or of nixpkgs is in the result. |
+| `NEEDED` | The programs are not static. In step 7 they had no `NEEDED` lines. |
+| `stdbuf` | `stdbuf` works, and it finds `libstdbuf.so`. |
+| `nix log` | configure ran its test programs. The build is native. |
+
+**If it fails:**
+
+| You see | The cause |
+|---|---|
+| `called without required argument 'mkTemp'` | The file still uses `mkTemp`. |
+| The closure has `lfs-temp-glibc` | The attribute uses `stdenv = lfsStdenv`. Use `lfsStdenvFinalToolchain`. |
+| `checking whether we are cross compiling... yes` | A `--host` or `--build` flag is still in the file. |
+
+### The other 13 tools
+
+**Strategy:** copy each file from `lfs-temp`, then edit the copy, as in the
+example.
+
+1. Copy the directory:
+
+   ```console
+   $ cp -r lfs-temp/gnused lfs-final/gnused
+   ```
+
+2. In the copy, do the changes of the coreutils example: `stdenv.mkDerivation`,
+   `{ stdenv, ... }:` and `pname = "lfs-final-<name>"`.
+3. Do the changes of the "What to change" column of "The packages".
+4. Add the attribute with `stdenv = lfsStdenvFinalToolchain`, and `git add`
+   the directory.
+5. Do the checks of the example. Use a program of that tool, not `ls`.
+
+If you do not do item 3, these problems occur:
+
+| Tool | The problem |
+|---|---|
+| bzip2 | `CC=${triple}-gcc` is not on `PATH`. The wrapper gives only `gcc`. The build fails. |
+| xz | It stays static, and it has no `liblzma.so`. |
+| coreutils | It has no `stdbuf`. |
+| bash | `bash_cv_strtold_broken` and `CC_FOR_BUILD` stay. Both are for a cross build. |
+| findutils, diffutils, gnupatch, gnutar | `gl_cv_func_working_mktime=yes` hides the configure test. The value is correct, so the build works. But the setting is for a cross build. |
+
+**Another method, for the 6 tools with "No change" only.** gnumake, gnused,
+gnugrep, gawk, gzip and patchelf only call `mkTemp`. You can call their
+`lfs-temp` file directly, and give it a different function with the name
+`mkTemp`:
+
+```nix
+# In lfs-final/default.nix, in the rec set.
+mkFinal = args: lfsStdenvFinalToolchain.mkDerivation
+    (args // { pname = "lfs-final-${args.pname}"; });
+callFinal = dir: pkgs.callPackage dir { mkTemp = mkFinal; };
+
+gnused = callFinal ../lfs-temp/gnused;
+```
+
+`mkFinal` does not add the settings of `lfs-temp/lib.nix` (`--host`,
+`--build`, `-static`, the cross `PATH`). So the build is native.
+
+The disadvantage: stage 3 then uses the files of step 7. A change in step 7
+also changes stage 3. A copy for each tool is clearer. This book uses copies.
+
+## Stage 4 — `lfsStdenvFinal`
+
+**Do:**
+
+1. `lfsStdenvFinal`: like step 9, but call `pkgs/build-support/cc-wrapper` and
    `bintools-wrapper` directly, as `stageFun` does. Pass `coreutils`,
    `gnugrep` and `runtimeShell` from the `lfs-final-*` set. That removes the
    wrapper leak from step 9. Use only `lfs-final-*` packages in `shell`,
    `initialPath` and `extraNativeBuildInputs`.
-3. `helloFinal`: `lfs-stdenv/hello` with `stdenv = lfsStdenvFinal`.
-4. Set `disallowedRequisites` on `lfsStdenvFinal` to every `lfs-` and
+2. `helloFinal`: `lfs-stdenv/hello` with `stdenv = lfsStdenvFinal`.
+3. Set `disallowedRequisites` on `lfsStdenvFinal` to every `lfs-` and
    `lfs-temp-` package. The build then fails if one of them leaks in.
 
 **Verify:**
