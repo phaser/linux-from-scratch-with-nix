@@ -52,6 +52,8 @@ $ qemu-system-aarch64 -M virt -accel kvm -cpu host -m 1024 -nographic \
     -append "console=ttyAMA0 root=/dev/vda rw"
 ```
 
+Without `/dev/kvm` (the container of 0b), use `-accel tcg -cpu max`.
+
 Inside the guest:
 
 ```console

@@ -33,16 +33,34 @@ QEMU -kernel Image  ->  kernel  ->  /init (initramfs) or /sbin/init (disk)
                                         -> ttyAMA0::respawn: -/bin/bash
 ```
 
-**Do:** restart the VM with nested virtualization, so that QEMU can use KVM.
-Your Mac (M4 Pro, macOS 26) supports it.
+QEMU runs the image in steps 17 to 19. With KVM, QEMU runs the guest at
+almost full speed. Without KVM, QEMU emulates the CPU (TCG): this is slower,
+but it works. Do the part for your route of step 0.
+
+**Do (0a, Tart VM):** restart the VM with nested virtualization, so that QEMU
+can use KVM. Apple silicon M3 or later, with macOS 15 or later, supports it.
 
 ```console
 $ tart stop lfs; tart run lfs --no-graphics --nested &
 ```
 
-**Verify (in the VM):**
+**Do (0b, Docker container):** nothing. The Docker VM on the Mac gives the
+container no KVM. QEMU uses TCG.
+
+**Verify** (in the VM or in the container):
 
 ```console
-$ ls -l /dev/kvm                                   # exists; without it QEMU emulates (slower, still works)
+$ ls -l /dev/kvm                                   # 0a: exists. 0b: No such file or directory
 $ nix shell nixpkgs#qemu -c qemu-system-aarch64 --version | head -1
+                                                   # QEMU emulator version ...
 ```
+
+The QEMU commands in steps 17 and 18 use KVM:
+
+| Route | QEMU options |
+|---|---|
+| 0a, with `/dev/kvm` | `-accel kvm -cpu host` |
+| 0b, or no `/dev/kvm` | `-accel tcg -cpu max` |
+
+In the container, QEMU runs in the terminal of `docker compose run`
+(`-nographic`). To leave QEMU: `Ctrl-a`, then `x`.
