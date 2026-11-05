@@ -318,7 +318,7 @@ lfs-temp/       steps 7-8   lib.nix (the helper), one directory per tool, glibc/
 lfs-stdenv/     steps 9-10  default.nix (lfsStdenv), hello/
 lfs-final/      step 11     one directory per package, default.nix (the stage stdenvs)
 lfs-stdenv-final/ step 11   default.nix (lfsStdenvFinal, stage 4)
-lfs-distro/     steps 14-18 kernel/ busybox/ sysenv/ etc/ init/ initrd/ root-image/
+lfs-distro/     steps 14-18 default.nix (busybox), kernel/ sysenv/ etc/ init/ initrd/ root-image/
 ```
 
 Step 0 writes `flake.nix` and the start of `lfs-toolchain/default.nix`.
