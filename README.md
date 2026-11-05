@@ -21,7 +21,9 @@ contents is [book/src/SUMMARY.md](book/src/SUMMARY.md).
 | [Appendix A — Debugging a build](book/src/appendix-debugging.md) | | |
 | [Appendix B — Nix concepts](book/src/appendix-nix-concepts.md) | | |
 
-To read it as a web site:
+Read it online: <https://phaser.github.io/linux-from-scratch-with-nix/>
+
+To read it as a local web site:
 
 ```console
 $ nix run nixpkgs#mdbook -- serve book --open
