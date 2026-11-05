@@ -26,4 +26,16 @@ in rec {
     # Stage 3: built by lfsStdenvFinalToolchain.
     coreutils = pkgs.callPackage ./coreutils { stdenv = lfsStdenvFinalToolchain; };
     gnumake = pkgs.callPackage ./gnumake { stdenv = lfsStdenvFinalToolchain; };
+    bash      = pkgs.callPackage ./bash { stdenv = lfsStdenvFinalToolchain; };
+    gnused    = pkgs.callPackage ./gnused { stdenv = lfsStdenvFinalToolchain; };
+    gnugrep   = pkgs.callPackage ./gnugrep { stdenv = lfsStdenvFinalToolchain; };
+    gawk      = pkgs.callPackage ./gawk { stdenv = lfsStdenvFinalToolchain; };
+    findutils = pkgs.callPackage ./findutils { stdenv = lfsStdenvFinalToolchain; };
+    diffutils = pkgs.callPackage ./diffutils { stdenv = lfsStdenvFinalToolchain; };
+    gnupatch  = pkgs.callPackage ./gnupatch { stdenv = lfsStdenvFinalToolchain; };
+    gnutar    = pkgs.callPackage ./gnutar { stdenv = lfsStdenvFinalToolchain; };
+    gzip      = pkgs.callPackage ./gzip { stdenv = lfsStdenvFinalToolchain; };
+    xz        = pkgs.callPackage ./xz { stdenv = lfsStdenvFinalToolchain; };
+    bzip2     = pkgs.callPackage ./bzip2 { stdenv = lfsStdenvFinalToolchain; };
+    patchelf  = pkgs.callPackage ./patchelf { stdenv = lfsStdenvFinalToolchain; };
 }

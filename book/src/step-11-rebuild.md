@@ -42,7 +42,7 @@ runtime closure gets `lfs-temp-gcc`.
 | 3 | 2 | `final.gcc` | 14.2.0 | `lfs-temp/gcc` | See "Stage 2" below. This page shows the full file. |
 | 4 | 3 | `final.gnumake` | 4.4.1 | `lfs-temp/gnumake` | No change. |
 | 5 | 3 | `final.coreutils` | 9.5 | `lfs-temp/coreutils` | Remove `stdbuf` from the `no-install` list, and remove `gl_cv_func_working_mktime`. |
-| 6 | 3 | `final.bash` | 5.2.32 | `lfs-temp/bash` | Remove `CC_FOR_BUILD` and `bash_cv_strtold_broken`. Keep `-fpermissive` and the `sh` link. |
+| 6 | 3 | `final.bash` | 5.2.32 | `lfs-temp/bash` | Remove `CC_FOR_BUILD` and `bash_cv_strtold_broken`. Keep `-fpermissive` and the `sh` link. In `postInstall`, remove the path of `install` from `lib/bash/Makefile.inc` (see the file). |
 | 7 | 3 | `final.gnused` | 4.9 | `lfs-temp/gnused` | No change. |
 | 8 | 3 | `final.gnugrep` | 3.11 | `lfs-temp/gnugrep` | No change. |
 | 9 | 3 | `final.gawk` | 5.3.0 | `lfs-temp/gawk` | No change. |
@@ -53,7 +53,7 @@ runtime closure gets `lfs-temp-gcc`.
 | 14 | 3 | `final.gzip` | 1.13 | `lfs-temp/gzip` | No change. |
 | 15 | 3 | `final.xz` | 5.6.2 | `lfs-temp/xz` | Remove `--disable-shared` and `LDFLAGS=-all-static`. |
 | 16 | 3 | `final.bzip2` | 1.0.8 | `lfs-temp/bzip2` | Keep only `PREFIX=$(out)` in `makeFlags`. |
-| 17 | 3 | `final.patchelf` | 0.18.0 | `lfs-temp/patchelf` | No change. Keep the `setupHook`. |
+| 17 | 3 | `final.patchelf` | 0.18.0 | `lfs-temp/patchelf` | No change. Keep the `setupHook`. The closure also has `lfs-final-gcc`, for `libstdc++`. |
 | 18 | 4 | `helloFinal` | 2.12.3 | `lfs-stdenv/hello` | Only the `pname`: `lfs-final-hello`. |
 
 The sources and hashes are the same as in steps 7, 8 and 10.
@@ -76,8 +76,7 @@ The sources and hashes are the same as in steps 7, 8 and 10.
 Do not use `mkTemp`. Write a smaller helper, or use `stdenv.mkDerivation`
 directly. Set `pname = "lfs-final-<name>"`.
 
-Packages 1, 2, 3 and 5 (coreutils) are built and checked. The other rows of the table follow
-from steps 7, 8 and 10, but they are not built yet.
+Packages 1 to 17 are built and checked. Package 18 is not built yet.
 
 ## Stage 1 — `lfs-final-glibc`
 
@@ -839,7 +838,21 @@ example.
 3. Do the changes of the "What to change" column of "The packages".
 4. Add the attribute with `stdenv = lfsStdenvFinalToolchain`, and `git add`
    the directory.
-5. Do the checks of the example. Use a program of that tool, not `ls`.
+5. Do the checks of the example. Use a program of that tool, not `ls`. The
+   closure must have two lines: `lfs-final-glibc` and the tool. Only
+   `patchelf` has a third line, `lfs-final-gcc`.
+
+If the closure has a nixpkgs package, a file stores a path. To find the
+file:
+
+```console
+$ nix-store -q --references ./result-final-bash          # the stored paths
+$ grep -rl <hash> result-final-bash/                     # the file with the path
+```
+
+An example: `lib/bash/Makefile.inc` of bash stores the nixpkgs `install`. The
+cc-wrapper of step 9 puts the nixpkgs coreutils first on `PATH`, and configure
+finds `install` there. Stage 4 removes this leak.
 
 If you do not do item 3, these problems occur:
 

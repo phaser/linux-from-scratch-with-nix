@@ -1,7 +1,7 @@
 { stdenv, fetchurl }:
 
 stdenv.mkDerivation rec {
-    pname = "gnumake";
+    pname = "lfs-final-gnumake";
     version = "4.4.1";
 
     src = fetchurl {
