@@ -278,3 +278,115 @@ $ grep -a -o 'Linux version [^)]*)' result-kernel/Image | head -1
 - `openssl/...h: No such file`: add `openssl.dev` to `nativeBuildInputs`, or
   disable the option that needs it with `scripts/config --disable <OPTION>`.
 - A script fails with `bad interpreter`: run `patchShebangs` on that directory too.
+- `mkdir: cannot create directory '/boot': Permission denied`, after
+  `install flags: … install`: stdenv ran its default install phase,
+  `make install`, so it did not find your `installPhase`. Check the spelling.
+  A wrong name, such as `installPhaser`, gives no error. See the next item.
+- `/proc/version` or `Image` shows the real date of the build: a
+  `KBUILD_BUILD_*` name is wrong (for example `KBUILD_BUILD_TIME`). The kernel
+  ignores names that it does not know, and it uses `date`.
+
+**A wrong attribute name gives no error.** `mkDerivation` gives each
+attribute to the build as an environment variable, so each name is valid.
+Nix cannot know that `installPhaser` was meant to be `installPhase`. The
+error comes later, as a different behaviour. When a phase or a setting seems
+to have no effect, check the spelling of its name first.
+
+## Bonus: where `.config` comes from
+
+Your file has no list of kernel options, but the kernel has about 10,000 of
+them. Look at what one line does:
+
+```nix
+make ARCH=arm64 defconfig
+```
+
+1. `defconfig` reads `arch/arm64/configs/defconfig` from the Linux tarball.
+   That file is short, about 1,000 lines. It lists only the options that
+   differ from the default. The kernel developers keep it, and it boots on
+   most arm64 machines, QEMU `virt` too.
+2. Kconfig, the configuration system of the kernel, adds the default value of
+   each other option. It also checks the dependencies between the options.
+3. The result is `.config` in the build directory, the full list. `make Image`
+   reads it. Your `installPhase` copies it to `$out/config`, so that you can
+   read it after the build.
+
+See the input file without a build:
+
+```console
+$ tar -xOf $(nix build --no-link --print-out-paths .#headers.src) \
+    linux-6.12/arch/arm64/configs/defconfig | wc -l          # about 1000
+$ wc -l result-kernel/config                                 # about 10000
+```
+
+The source is the same store path as in step 3, so the first command
+downloads nothing.
+
+### Add or change an option
+
+Change `.config` after `make defconfig`, in the configure phase. Then let
+Kconfig check the dependencies again with `olddefconfig`.
+
+**A few options: `scripts/config`.**
+
+```nix
+configurePhase = ''
+  runHook preConfigure
+  make ARCH=arm64 defconfig
+  scripts/config --enable CONFIG_IKCONFIG_PROC     # /proc/config.gz in the guest
+  scripts/config --disable CONFIG_SOUND
+  make ARCH=arm64 olddefconfig
+  runHook postConfigure
+'';
+```
+
+| Command | Effect |
+|---|---|
+| `scripts/config --enable X` | `CONFIG_X=y`: built into `Image` |
+| `scripts/config --module X` | `CONFIG_X=m`: a module. This step builds no modules, so do not use it. |
+| `scripts/config --disable X` | `# CONFIG_X is not set` |
+| `scripts/config --set-val X 64` | `CONFIG_X=64`, for a number or a string |
+
+**Many options: a fragment file in the repo.** Write the options in
+`lfs-distro/kernel/extra.config`:
+
+```
+CONFIG_IKCONFIG=y
+CONFIG_IKCONFIG_PROC=y
+# CONFIG_SOUND is not set
+```
+
+Then merge it in the configure phase:
+
+```nix
+configurePhase = ''
+  runHook preConfigure
+  make ARCH=arm64 defconfig
+  scripts/kconfig/merge_config.sh -m .config ${./extra.config}
+  make ARCH=arm64 olddefconfig
+  runHook postConfigure
+'';
+```
+
+`${./extra.config}` is a path in the repo. Nix copies the file into the store
+and gives its store path to the build, as for a patch (step 8). Run
+`git add lfs-distro/kernel/extra.config`.
+
+**Check that the option is there.** Kconfig removes an option when one of its
+dependencies is off, and it gives no error. Check the result:
+
+```console
+$ grep -E '^CONFIG_IKCONFIG(_PROC)?=' result-kernel/config    # both =y
+```
+
+To stop the build when an option is missing, add a check after
+`olddefconfig`:
+
+```sh
+grep -q '^CONFIG_IKCONFIG_PROC=y' .config || { echo "CONFIG_IKCONFIG_PROC is missing"; exit 1; }
+```
+
+**What Nix does with the change.** The configure phase is part of the
+derivation. A new option, or a change in `extra.config`, gives a new store
+path, so Nix builds the kernel again. The old kernel stays in the store, so a
+change back gives the old path, and Nix builds nothing.

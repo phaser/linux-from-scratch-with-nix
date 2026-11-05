@@ -161,6 +161,11 @@ Read: the Nix manual, "Built-in functions", `placeholder`.
 (step 11) work this way. A list becomes one string, with a space between the
 items.
 
+A wrong name is no error. `installPhaser = …;` is a valid attribute: it
+becomes the variable `installPhaser`, and stdenv runs its default install
+phase. When a setting seems to have no effect, check the spelling of its name
+first (step 14).
+
 `env.X = "…";` sets the variable `X` explicitly. Use it for names that are
 not attributes of `mkDerivation`, such as `env.NIX_CFLAGS_COMPILE` (step 1).
 
