@@ -107,7 +107,10 @@ is the only kind of build that gets network access, because Nix can check the
 result. `lib.fakeHash` is a placeholder that always fails, so Nix prints the
 real hash. `nix store prefetch-file <url>` gives the hash without a build.
 Hashes use the SRI format `sha256-<base64>`; `nix hash convert`
-converts from hex. A patch from a URL (`patches = [ (fetchurl { … }) ]`) is a
+converts from hex. The store path of a fixed-output derivation comes from
+the hash and the name only, not from the URL. Two `fetchurl` calls with the
+same file name and hash give one store path, and Nix downloads the file once
+(step 14). A patch from a URL (`patches = [ (fetchurl { … }) ]`) is a
 fixed-output derivation too (step 11). Read: the nixpkgs manual, "Fetchers".
 
 ## `stdenv.mkDerivation` and phases
@@ -324,6 +327,14 @@ initramfs.
 
 ## Reproducibility
 
-Nix pins *inputs*. It does not prove that two builds give the same bytes.
+Nix pins *inputs*. The store path comes from the inputs, not from the
+output, so two builds of one derivation have the same path also when their
+bytes differ. Nix does not prove that two builds give the same bytes.
 `nix build --rebuild` builds again and compares. `diffoscope` shows the
-difference. Read: <https://reproducible-builds.org/>.
+difference.
+
+The usual causes of a difference are the time, the user and the host of the
+build. stdenv sets `SOURCE_DATE_EPOCH`, and many tools use it instead of the
+clock. Some tools have their own variables: the kernel reads
+`KBUILD_BUILD_TIMESTAMP`, `KBUILD_BUILD_USER` and `KBUILD_BUILD_HOST`
+(step 14). Read: <https://reproducible-builds.org/>.
