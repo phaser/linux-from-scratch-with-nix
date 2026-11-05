@@ -9,5 +9,7 @@ in rec {
 
     lfsStdenvFinalGlibc = mkStdenv { name = "lfs-stdenv-final-glibc"; libc = glibc; };
 
+    binutils = pkgs.callPackage ./binutils { stdenv = lfsStdenvFinalGlibc; inherit (toolchain) triple; };
+
     helloFinalGlibc = pkgs.callPackage ../lfs-stdenv/hello { stdenv = lfsStdenvFinalGlibc; };
 }
