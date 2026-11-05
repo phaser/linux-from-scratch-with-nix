@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 1200" width="900" height="1200" role="img" aria-labelledby="t d">
+  <title id="t">Linux from scratch with Nix</title>
+  <desc id="d">By Cristian Bidea, Anthropic Claude Opus 5.5 and DeepSeek v4.1 Flash. Learn Nix with a great hands-on project!</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0" stop-color="#0d1726"/>
+      <stop offset="1" stop-color="#1a2f4e"/>
+    </linearGradient>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M30 0H0V30" fill="none" stroke="#ffffff" stroke-opacity="0.04" stroke-width="1"/>
+    </pattern>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#7ebae4" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#7ebae4" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- background -->
+  <rect width="900" height="1200" fill="url(#bg)"/>
+  <rect width="900" height="1200" fill="url(#grid)"/>
+  <rect x="24" y="24" width="852" height="1152" rx="10" fill="none" stroke="#7ebae4" stroke-opacity="0.25" stroke-width="2"/>
+
+  <!-- title -->
+  <text x="450" y="118" text-anchor="middle" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="20" letter-spacing="6" fill="#7ebae4">A HANDS-ON BOOK</text>
+  <text x="450" y="228" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="86" font-weight="700" fill="#ffffff">Linux from scratch</text>
+  <text x="450" y="322" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="86" font-weight="700" fill="#7ebae4">with Nix</text>
+  <line x1="330" y1="368" x2="570" y2="368" stroke="#7ebae4" stroke-opacity="0.5" stroke-width="2"/>
+
+  <!-- a dependency graph: many sources converge into one system -->
+  <ellipse cx="450" cy="460" rx="200" ry="90" fill="url(#glow)"/>
+  <g stroke="#7ebae4" stroke-opacity="0.35" stroke-width="2" fill="none">
+    <!-- row 0 to row 1 -->
+    <path d="M150 760L210 660M250 760L210 660M250 760L330 660M350 760L330 660M350 760L450 660M450 760L450 660M450 760L570 660M550 760L450 660M550 760L570 660M650 760L570 660M650 760L690 660M750 760L690 660"/>
+    <!-- row 1 to row 2 -->
+    <path d="M210 660L300 560M330 660L300 560M330 660L450 560M450 660L450 560M570 660L450 560M570 660L600 560M690 660L600 560"/>
+    <!-- row 2 to the top -->
+    <path d="M300 560L450 460M450 560L450 460M600 560L450 460"/>
+    <!-- edges that skip a row -->
+    <path d="M150 760Q170 640 300 560M750 760Q730 640 600 560" stroke-dasharray="4 6"/>
+  </g>
+  <g fill="#2c5185" stroke="#7ebae4" stroke-opacity="0.6" stroke-width="2">
+    <circle cx="150" cy="760" r="10"/><circle cx="250" cy="760" r="10"/><circle cx="350" cy="760" r="10"/>
+    <circle cx="450" cy="760" r="10"/><circle cx="550" cy="760" r="10"/><circle cx="650" cy="760" r="10"/>
+    <circle cx="750" cy="760" r="10"/>
+  </g>
+  <g fill="#3f6fa6" stroke="#7ebae4" stroke-opacity="0.7" stroke-width="2">
+    <circle cx="210" cy="660" r="12"/><circle cx="330" cy="660" r="12"/><circle cx="450" cy="660" r="12"/>
+    <circle cx="570" cy="660" r="12"/><circle cx="690" cy="660" r="12"/>
+  </g>
+  <g fill="#5a93c8" stroke="#9fd0f0" stroke-width="2">
+    <circle cx="300" cy="560" r="14"/><circle cx="450" cy="560" r="14"/><circle cx="600" cy="560" r="14"/>
+  </g>
+  <circle cx="450" cy="460" r="34" fill="none" stroke="#9fd0f0" stroke-opacity="0.4" stroke-width="2"/>
+  <circle cx="450" cy="460" r="22" fill="#9fd0f0"/>
+  <text x="450" y="806" text-anchor="middle" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="16" letter-spacing="2" fill="#7ebae4" fill-opacity="0.7">EVERY BYTE BUILT FROM SOURCE</text>
+
+  <!-- terminal -->
+  <rect x="190" y="834" width="520" height="64" rx="8" fill="#07101b" stroke="#7ebae4" stroke-opacity="0.4" stroke-width="1.5"/>
+  <circle cx="214" cy="852" r="5" fill="#e06c75"/>
+  <circle cx="232" cy="852" r="5" fill="#e5c07b"/>
+  <circle cx="250" cy="852" r="5" fill="#98c379"/>
+  <text x="214" y="884" font-family="Menlo, Consolas, 'DejaVu Sans Mono', monospace" font-size="22" fill="#d7e6f3"><tspan fill="#98c379">$</tspan> nix build .#rootImage</text>
+  <rect x="534" y="866" width="12" height="22" fill="#7ebae4"/>
+
+  <!-- tagline -->
+  <text x="450" y="968" text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="36" font-style="italic" fill="#ffffff">Learn Nix with a great hands-on project!</text>
+
+  <!-- authors -->
+  <line x1="390" y1="1010" x2="510" y2="1010" stroke="#7ebae4" stroke-opacity="0.5" stroke-width="2"/>
+  <g text-anchor="middle" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="27" fill="#c9dcec">
+    <text x="450" y="1064">Cristian Bidea</text>
+    <text x="450" y="1104">Anthropic Claude Opus 5.5</text>
+    <text x="450" y="1144">DeepSeek v4.1 Flash</text>
+  </g>
+</svg>

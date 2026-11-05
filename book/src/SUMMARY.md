@@ -1,5 +1,6 @@
 # Summary
 
+[Cover](cover.md)
 [Introduction](introduction.md)
 
 - [Part 0 — The environment](part-0.md)
