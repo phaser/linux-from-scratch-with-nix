@@ -19,12 +19,15 @@ The packages of steps 7 and 8 work, but each one has a mark of the host:
 In this step, your own tools build every package again. Do it in stages, as
 nixpkgs does. Each stage uses only the results of the stage before it.
 
-| Stage | Built with | Builds |
-|---|---|---|
-| 1 | `lfsStdenv` | `lfs-final-glibc` |
-| 2 | `lfsStdenv1`: `lfsStdenv` with `libc = final.glibc` in both wrappers | `lfs-final-binutils`, `lfs-final-gcc` |
-| 3 | `lfsStdenv2`: the wrappers around `final.binutils` and `final.gcc`, with `final.glibc` | The 14 tools of step 7, as `lfs-final-*` |
-| 4 | `lfsStdenvFinal`: only `lfs-final-*` packages | `lfs-final-hello` (`helloFinal`) |
+Each stage has its own stdenv. The name of the stdenv tells which parts are
+final:
+
+| Stage | Built with | glibc | binutils, gcc | Other tools | Builds |
+|---|---|---|---|---|---|
+| 1 | `lfsStdenv` (step 9) | temp | temp | temp | `lfs-final-glibc` |
+| 2 | `lfsStdenvFinalGlibc` | **final** | temp | temp | `lfs-final-binutils`, `lfs-final-gcc` |
+| 3 | `lfsStdenvFinalToolchain` | **final** | **final** | temp | The 14 tools of step 7, as `lfs-final-*` |
+| 4 | `lfsStdenvFinal` | **final** | **final** | **final** | `lfs-final-hello` (`helloFinal`) |
 
 Stage 3 uses the final gcc, not the temporary gcc. `patchelf` is C++, and it
 links `libstdc++` from the gcc that builds it. With the temporary gcc, the
@@ -35,8 +38,8 @@ runtime closure gets `lfs-temp-gcc`.
 | # | Stage | Attribute | Version | Start from | What to change |
 |---|---|---|---|---|---|
 | 1 | 1 | `final.glibc` | 2.40 | `lfs-temp/glibc` | See "Stage 1" below. This page shows the full file. |
-| 2 | 2 | `final.binutils` | 2.43 | `lfs-temp/binutils` | Remove `preBuild` and `LDFLAGS=-all-static`. Give `--build`, `--host` and `--target`, all `${triple}`. |
-| 3 | 2 | `final.gcc` | 14.2.0 | `lfs-temp/gcc` | Give `--build`, `--host` and `--target`, all `${triple}`. Use `final.glibc` in `--with-native-system-header-dir` and `--with-glibc-version`. Remove `CXX_FOR_BUILD` and `LDFLAGS_FOR_BUILD`. Keep the patch and the gmp, mpfr and mpc sources. |
+| 2 | 2 | `final.binutils` | 2.43 | `lfs-temp/binutils` | See "Stage 2" below. This page shows the full file. |
+| 3 | 2 | `final.gcc` | 14.2.0 | `lfs-temp/gcc` | See "Stage 2" below. This page shows the full file. |
 | 4 | 3 | `final.gnumake` | 4.4.1 | `lfs-temp/gnumake` | No change. |
 | 5 | 3 | `final.coreutils` | 9.5 | `lfs-temp/coreutils` | Remove `stdbuf` from the `no-install` list, and remove `gl_cv_func_working_mktime`. |
 | 6 | 3 | `final.bash` | 5.2.32 | `lfs-temp/bash` | Remove `CC_FOR_BUILD` and `bash_cv_strtold_broken`. Keep `-fpermissive` and the `sh` link. |
@@ -66,15 +69,15 @@ The sources and hashes are the same as in steps 7, 8 and 10.
   its test programs.
 - **Keep each setting that stops a stored path.** `SHELL=/bin/sh` and the
   `ac_cv_path_*` variables (step 7, reasons 5 and 6) are still necessary. If
-  you remove them, the scripts store a path into `lfs-temp-*`. Item 5 of
-  "Stages 2 to 4" finds this.
+  you remove them, the scripts store a path into `lfs-temp-*`. Item 4 of
+  "Stages 3 and 4" finds this.
 - **Keep the LFS settings.**
 
 Do not use `mkTemp`. Write a smaller helper, or use `stdenv.mkDerivation`
 directly. Set `pname = "lfs-final-<name>"`.
 
-The first package, glibc, is built and checked. The other rows of the table
-follow from steps 7, 8 and 10, but they are not built yet.
+Packages 1 to 3 are built and checked. The other rows of the table follow
+from steps 7, 8 and 10, but they are not built yet.
 
 ## Stage 1 — `lfs-final-glibc`
 
@@ -155,7 +158,7 @@ the host, and that has no reference to `lfs-temp-glibc`.
 2. Write `lfs-final/default.nix`:
 
    ```nix
-   { pkgs, toolchain, lfsStdenv }:
+   { pkgs, nixpkgs, toolchain, temp, lfsStdenv }:
 
    rec {
      # Stage 1: built by lfsStdenv.
@@ -163,13 +166,14 @@ the host, and that has no reference to `lfs-temp-glibc`.
    }
    ```
 
-   Add the next stages to the same `rec` set. Stage 2 needs `lfsStdenv1`,
-   which uses `glibc`.
+   The next stages go in the same `rec` set. Stage 2 makes new stdenvs, and
+   for that it needs `nixpkgs` and `temp`. Stage 1 does not use them, but give
+   them now, so that you do not change `flake.nix` again.
 
 3. Import it in `flake.nix`, next to `hello`:
 
    ```nix
-   final = import ./lfs-final { inherit pkgs toolchain lfsStdenv; };
+   final = import ./lfs-final { inherit pkgs nixpkgs toolchain temp lfsStdenv; };
    ```
 
    Use the name `final`. If you merge the set at the top, `final.glibc`
@@ -239,7 +243,7 @@ nixpkgs does two things, and this file does the same:
 A glibc does not need an rpath. Its loader finds its own libraries in
 `$out/lib`, the system search path.
 
-## Verify
+### Verify stage 1
 
 ```console
 $ nix build .#final.glibc -o result-final-glibc -L      # about 4 minutes
@@ -267,7 +271,7 @@ $ LD_DEBUG=libs result-final-glibc/bin/iconv -l 2>&1 | grep -E 'search|trying' |
 | `--list-diagnostics` | The patch worked: the configuration directory is `$out/etc`. |
 | `LD_DEBUG` | `iconv` has no `RUNPATH`, so the loader tries its cache first. The cache path is in the store, and the file does not exist. Then the loader uses its own `lib`. The cache of the host is not read. |
 
-**If it fails:**
+**If stage 1 fails:**
 
 - `Hunk #1 FAILED at 48` in `elf/ldconfig.c`: the patch is the version of the
   pinned nixpkgs. Use the URL with the commit hash.
@@ -278,21 +282,446 @@ $ LD_DEBUG=libs result-final-glibc/bin/iconv -l 2>&1 | grep -E 'search|trying' |
   `RUNPATH`, check the `postConfigure` line.
 - `nix path-info -r` shows `lfs-temp-bash`: check `BASH_SHELL`.
 
-## Stages 2 to 4
+## Stage 2 — binutils and gcc for the final glibc
+
+**Files to change:** `lfs-stdenv/default.nix`, `lfs-final/default.nix`
+
+**Files to write:** `lfs-final/binutils/default.nix`, `lfs-final/gcc/default.nix`
+
+**Goal:** a binutils and a gcc that use `lfs-final-glibc`, and a stdenv that
+uses them.
+
+Stage 2 is not the same as stage 1:
+
+| | Stage 1 | Stage 2 |
+|---|---|---|
+| The stdenv | `lfsStdenv` of step 9 | `lfsStdenvFinalGlibc`, a new stdenv |
+| The new programs use | `lfs-final-glibc` (its own) | `lfs-final-glibc` |
+| What gcc compiles | — | Its own `libgcc` and `libstdc++`, with its new compiler. That compiler has no wrapper. See part 2d. |
+| The result | A library | A new stdenv, `lfsStdenvFinalToolchain` |
+
+Do the parts in this sequence. Each part has a check. Do the check before you
+start the next part.
+
+| Part | What you do | Build time |
+|---|---|---|
+| 2a | Let `lfs-stdenv/default.nix` take arguments. | none |
+| 2b | Make `lfsStdenvFinalGlibc`. Compile `hello` with it. | less than 1 minute |
+| 2c | Build `final.binutils`. | about 1.5 minutes |
+| 2d | Build `final.gcc`. | about 17 minutes |
+| 2e | Make `lfsStdenvFinalToolchain`. Compile `hello` with it. | less than 1 minute |
+
+### 2a — let `lfs-stdenv` take arguments
+
+Stage 2 needs two new stdenvs. Each one is the stdenv of step 9 with other
+parts. Do not copy the file. Give it arguments. The defaults are the values of
+step 9, so `lfsStdenv` does not change.
+
+**Do:** change the start of `lfs-stdenv/default.nix`:
+
+```diff
+-{ pkgs, nixpkgs, temp }:
++{ pkgs, nixpkgs, temp,
++  name ? "lfs-stdenv",
++  libc ? temp.glibc,
++  binutils ? temp.binutils,
++  gcc ? temp.gcc }:
+ let
+     inherit (pkgs) lib;
+     genericStdenv = import "${nixpkgs}/pkgs/stdenv/generic" { defaultConfig = pkgs.config; };
+-    libc = temp.glibc;
+-    bintools = pkgs.wrapBintoolsWith { bintools = temp.binutils; inherit libc; };
+-    cc = pkgs.wrapCCWith { cc = temp.gcc; inherit bintools libc; };
++    bintools = pkgs.wrapBintoolsWith { bintools = binutils; inherit libc; };
++    cc = pkgs.wrapCCWith { cc = gcc; inherit bintools libc; };
+ in
+ genericStdenv {
+-    name = "lfs-stdenv";
++    inherit name;
+```
+
+| Argument | Default (step 9) | Stage 2 gives |
+|---|---|---|
+| `name` | `"lfs-stdenv"` | A new name for each stdenv |
+| `libc` | `temp.glibc` | `final.glibc` |
+| `binutils` | `temp.binutils` | `final.binutils` (part 2e only) |
+| `gcc` | `temp.gcc` | `final.gcc` (part 2e only) |
+
+The other parts do not change: `shell`, `initialPath` and `patchelf` stay
+`lfs-temp-*`. Stage 4 changes them.
+
+**Verify:** the derivation of `lfsStdenv` is the same as before the change.
+
+```console
+$ nix eval --raw .#lfsStdenv.drvPath; echo      # BEFORE the change. Write down the path.
+$ nix eval --raw .#lfsStdenv.drvPath; echo      # AFTER the change: the same path
+```
+
+If the paths are not the same, a default is not the value of step 9.
+
+### 2b — `lfsStdenvFinalGlibc` and sample compilation 1
+
+This stdenv uses the temporary binutils and gcc, but the wrappers give them
+`lfs-final-glibc`. The cc-wrapper adds `-B<glibc>/lib` and `-idirafter
+<glibc>/include`. The bintools-wrapper adds `-dynamic-linker` and `-L` for the
+glibc. Each program that this stdenv compiles uses `lfs-final-glibc`.
 
 **Do:**
 
-1. `lfsStdenv1`: the same as `lfsStdenv`, but with `libc = final.glibc` in
-   both wrappers. Build `final.binutils` and `final.gcc` with it.
-2. `lfsStdenv2`: the same as `lfsStdenv1`, but the wrappers wrap
-   `final.binutils` and `final.gcc`. Build the 14 tools with it.
-3. `lfsStdenvFinal`: like step 9, but call `pkgs/build-support/cc-wrapper` and
+1. Write `lfs-final/default.nix`. Remove your `binutils` line for now. Part
+   2c adds it again, with the new stdenv.
+
+   ```nix
+   { pkgs, nixpkgs, toolchain, temp, lfsStdenv }:
+
+   let
+     # The stdenv of step 9, with other parts (part 2a).
+     mkStdenv = args: import ../lfs-stdenv ({ inherit pkgs nixpkgs temp; } // args);
+   in
+   rec {
+     # Stage 1: built by lfsStdenv.
+     glibc = pkgs.callPackage ./glibc { stdenv = lfsStdenv; inherit (toolchain) headers; };
+
+     # Stage 2: temporary binutils and gcc, final glibc.
+     lfsStdenvFinalGlibc = mkStdenv { name = "lfs-stdenv-final-glibc"; libc = glibc; };
+
+     # Sample compilation 1.
+     helloFinalGlibc = pkgs.callPackage ../lfs-stdenv/hello { stdenv = lfsStdenvFinalGlibc; };
+   }
+   ```
+
+2. Make sure that `flake.nix` gives `nixpkgs` and `temp` (stage 1, item 3):
+
+   ```nix
+   final = import ./lfs-final { inherit pkgs nixpkgs toolchain temp lfsStdenv; };
+   ```
+
+**Verify:**
+
+```console
+$ nix build .#final.helloFinalGlibc -o result-hello-final-glibc -L
+$ result-hello-final-glibc/bin/hello                    # Hello, world!
+$ nix path-info -r ./result-hello-final-glibc           # TWO lines: lfs-final-glibc, lfs-hello
+$ $B/$T-readelf -l result-hello-final-glibc/bin/hello | grep interpreter
+                                                        # ...-lfs-final-glibc-2.40/lib/ld-linux-aarch64.so.1
+$ $B/$T-readelf -d result-hello-final-glibc/bin/hello | grep RUNPATH
+                                                        # ...-lfs-final-glibc-2.40/lib
+```
+
+Compare with `result-hello` of step 10. There, each path is `lfs-temp-glibc`.
+
+The temporary gcc still reads the headers of `lfs-temp-glibc` first, before
+the `-idirafter` headers. That is not a problem: both are glibc 2.40. The
+final gcc of part 2d reads the headers of `lfs-final-glibc` only.
+
+**If it fails:**
+
+- The closure has `lfs-temp-glibc`: the `libc = glibc` argument is missing.
+  The default is `temp.glibc`.
+- The closure has `lfs-temp-gcc`: the `extraNativeBuildInputs` line of step 9
+  is missing.
+- `error: function 'anonymous lambda' called with unexpected argument`: part
+  2a is not done.
+
+### 2c — `final.binutils`
+
+**Do:**
+
+1. Write `lfs-final/binutils/default.nix`:
+
+   ```nix
+   { stdenv, fetchurl, texinfo, perl, triple }:
+
+   stdenv.mkDerivation rec {
+       pname = "lfs-final-binutils";
+       version = "2.43";
+
+       src = fetchurl {
+           url = "mirror://gnu/binutils/binutils-${version}.tar.gz";
+           hash = "sha256-AlxDbRUEkHbr5RHSllHMR4XuUCllqIOZNqZVGFgr3WQ=";
+       };
+
+       # texinfo: as in step 8b. perl: pod2man makes the man pages.
+       nativeBuildInputs = [ texinfo perl ];
+
+       # LFS builds in a separate directory.
+       preConfigure = "mkdir -p build && cd build";
+       configureScript = "../configure";
+
+       # stdenv adds --build and --host with the nixpkgs name of the machine.
+       # Give the three names yourself, all the same: the tools are native.
+       configurePlatforms = [ ];
+       configureFlags = [
+           "--build=${triple}"
+           "--host=${triple}"
+           "--target=${triple}"
+           "--disable-nls"
+           "--disable-werror"
+           "--disable-gprofng"
+           "--enable-default-hash-style=gnu"
+       ];
+   }
+   ```
+
+2. Add the attribute to `lfs-final/default.nix`, after `lfsStdenvFinalGlibc`:
+
+   ```nix
+   binutils = pkgs.callPackage ./binutils { stdenv = lfsStdenvFinalGlibc; inherit (toolchain) triple; };
+   ```
+
+The changes from step 8b:
+
+| Step 8b | Part 2c | Why |
+|---|---|---|
+| `mkTemp` | `stdenv.mkDerivation`, `pname = "lfs-final-binutils"` | `mkTemp` is for a build with the host compiler. |
+| `--host` (from `mkTemp`), `--target` | `configurePlatforms = [ ]`, and `--build`, `--host`, `--target`, all `${triple}` | If one name is not the same, binutils is a cross binutils. Then the tools are `bin/${triple}-ld`, not `bin/ld`. |
+| `--disable-shared`, `--disable-plugins`, `LDFLAGS=-all-static`, `preBuild` | Removed | They are for a static build. |
+| `nativeBuildInputs = [ texinfo ]` | `[ texinfo perl ]` | `lfsStdenv` has no perl. Without perl, the build makes no man pages, and it does not fail. |
+| In the source directory | `preConfigure`, `configureScript` | LFS chapter 8 builds in a separate directory. |
+
+Do not set `dontAddPrefix`. stdenv adds `--prefix=$out`. Without it, the
+prefix is `/usr/local`.
+
+**Verify:**
+
+```console
+$ nix build .#final.binutils -o result-final-binutils -L     # about 1.5 minutes
+$ ls result-final-binutils/bin
+    # addr2line ar as c++filt elfedit gprof ld ld.bfd nm objcopy objdump ranlib readelf size strings strip
+$ nix path-info -r ./result-final-binutils              # TWO lines: lfs-final-glibc, lfs-final-binutils
+$ $B/$T-readelf -l result-final-binutils/bin/ld | grep interpreter
+                                                        # ...-lfs-final-glibc-2.40/lib/ld-linux-aarch64.so.1
+$ $B/$T-readelf -d result-final-binutils/bin/ld | grep RUNPATH
+                                                        # ...-lfs-final-glibc-2.40/lib
+$ ls result-final-binutils/share/man/man1 | head -1     # addr2line.1.gz
+```
+
+**If it fails:**
+
+| You see | The cause |
+|---|---|
+| `mkdir: cannot create directory '/usr': Permission denied` | `dontAddPrefix = true`. Remove it. |
+| `bin/aarch64-lfs-linux-gnu-ld`, not `bin/ld` | The three platform flags, or `configurePlatforms = [ ]`, are missing. |
+| Files in `$out/tools` | A `--prefix` from step 1 is in the file. Remove it. |
+| The closure has `lfs-temp-glibc` | The attribute uses `stdenv = lfsStdenv`. Use `lfsStdenvFinalGlibc`. |
+| No `share/man/man1` | `perl` is missing. |
+
+### 2d — `final.gcc`
+
+**Do:**
+
+1. Write `lfs-final/gcc/default.nix`:
+
+   ```nix
+   { stdenv, fetchurl, triple, glibc }:
+
+   let
+       gmp = fetchurl {
+           url = "mirror://gnu/gmp/gmp-6.3.0.tar.bz2";
+           hash = "sha256-rCghGnz7YJuuLiyNYFjWbI/pZDT3QM9v4uR7AA0cIMs=";
+       };
+       mpfr = fetchurl {
+           url = "mirror://gnu/mpfr/mpfr-4.2.2.tar.xz";
+           hash = "sha256-tnugOD736KhWNzTi6InvXsPDuJigHQD6CmhprYHGzgE=";
+       };
+       mpc = fetchurl {
+           url = "mirror://gnu/mpc/mpc-1.4.1.tar.xz";
+           hash = "sha256-kSBM0y8WS9O3yZLUpqjOZRlRGq2rMPeLaYLQv41z6TE=";
+       };
+   in
+   stdenv.mkDerivation rec {
+       pname = "lfs-final-gcc";
+       version = "14.2.0";
+
+       src = fetchurl {
+           url = "mirror://gnu/gcc/gcc-${version}/gcc-${version}.tar.xz";
+           hash = "sha256-p7Obxpy/niWCbFpgqyZHcAH3wI2FzsBLwOKcq+1vPMk=";
+       };
+
+       postUnpack = ''
+           tar -xf ${gmp}  -C $sourceRoot && mv $sourceRoot/gmp-*  $sourceRoot/gmp
+           tar -xf ${mpfr} -C $sourceRoot && mv $sourceRoot/mpfr-* $sourceRoot/mpfr
+           tar -xf ${mpc}  -C $sourceRoot && mv $sourceRoot/mpc-*  $sourceRoot/mpc
+       '';
+
+       # The same patch as step 8c.
+       patches = [ ../../lfs-temp/gcc/no-sys-dirs.patch ];
+       hardeningDisable = [ "format" ];
+
+       preConfigure = "mkdir -p build && cd build";
+       configureScript = "../configure";
+
+       configurePlatforms = [ ];
+       configureFlags = [
+           "--build=${triple}"
+           "--host=${triple}"
+           "--target=${triple}"
+           "--with-native-system-header-dir=${glibc}/include"
+           "--enable-languages=c,c++"
+           "--disable-nls"
+           "--disable-multilib"
+           "--disable-bootstrap"
+           "--disable-lto"
+           "--disable-plugin"
+           "--disable-libsanitizer"
+       ];
+
+       # gcc compiles libgcc and libstdc++ with its new xgcc. xgcc has no
+       # wrapper. Give it the final glibc, as nixpkgs does
+       # (pkgs/development/compilers/gcc/common/builder.nix).
+       preBuild = ''
+           tflags="-B${glibc}/lib -idirafter ${glibc}/include"
+           lflags="-Wl,-L${glibc}/lib -Wl,-rpath,${glibc}/lib -Wl,-dynamic-linker=${glibc}/lib/ld-linux-aarch64.so.1"
+           makeFlagsArray+=(
+               "FLAGS_FOR_TARGET=$tflags $lflags"
+               "CFLAGS_FOR_TARGET=-O2 $tflags $lflags"
+               "CXXFLAGS_FOR_TARGET=-O2 $tflags $lflags"
+               "LDFLAGS_FOR_TARGET=$lflags"
+           )
+       '';
+
+       # As in step 8c: these scripts store paths of the build tools.
+       postInstall = ''
+           rm -r $out/libexec/gcc/${triple}/${version}/install-tools
+       '';
+   }
+   ```
+
+2. Add the attribute to `lfs-final/default.nix`, after `binutils`:
+
+   ```nix
+   gcc = pkgs.callPackage ./gcc { stdenv = lfsStdenvFinalGlibc; inherit glibc; inherit (toolchain) triple; };
+   ```
+
+   `inherit glibc` gives `final.glibc`, from the same `rec` set.
+
+The changes from step 8c:
+
+| Step 8c | Part 2d | Why |
+|---|---|---|
+| `mkTemp` | `stdenv.mkDerivation`, `pname = "lfs-final-gcc"` | As in part 2c. |
+| `--target` | `configurePlatforms = [ ]`, and the three names | As in part 2c. |
+| `CXX_FOR_BUILD`, `LDFLAGS_FOR_BUILD` | Removed | The build programs (`genmodes`, `gengtype` ...) now use the same compiler as gcc. There is no host compiler. |
+| `--with-glibc-version` | Removed | build = host, so configure finds `features.h` in the native header directory. It sees the glibc version. |
+| The `limits.h` lines of `postInstall` | Removed | The same reason. gcc finds the `limits.h` of glibc, and its own `limits.h` includes it. |
+| — | `preBuild` | See "xgcc and the start files" below. |
+| `./no-sys-dirs.patch` | `../../lfs-temp/gcc/no-sys-dirs.patch` | The same file. You can also copy it. |
+
+#### xgcc and the start files
+
+In step 8c, build was not the same as host. gcc compiled `libgcc` and
+`libstdc++` with the gcc of step 6. That gcc has a sysroot, and it finds the
+glibc.
+
+Now build, host and target are the same. gcc compiles its libraries with
+`xgcc`, the compiler that it just built. `xgcc` has no wrapper. The patch
+removed `/lib` and `/usr/lib`. So `xgcc` does not know where the glibc is, and
+the link of `libgcc_s.so` fails after about 15 minutes:
+
+```text
+ld: cannot find crti.o: No such file or directory
+```
+
+The `*_FOR_TARGET` variables give `xgcc` the flags that the cc-wrapper gives
+to the other compilers:
+
+| Flag | It gives |
+|---|---|
+| `-B${glibc}/lib` | The start files `crt1.o`, `crti.o`, `crtn.o` |
+| `-idirafter ${glibc}/include` | The glibc headers |
+| `-Wl,-L${glibc}/lib` | `libc.so` and `libm.so` for the linker |
+| `-Wl,-rpath,${glibc}/lib` | A `RUNPATH`, so `libstdc++.so` finds the final glibc at run time |
+| `-Wl,-dynamic-linker=...` | The final loader, not `/lib/ld-linux-aarch64.so.1` |
+
+Use `makeFlagsArray` in `preBuild`, not `makeFlags`. Each value has spaces.
+stdenv splits `makeFlags` at each space. `makeFlagsArray` keeps each value as
+one argument.
+
+**Verify:**
+
+```console
+$ nix build .#final.gcc -o result-final-gcc -L          # about 17 minutes
+$ G=result-final-gcc
+$ nix path-info -r ./$G                                 # TWO lines: lfs-final-glibc, lfs-final-gcc
+$ $B/$T-readelf -l $G/bin/gcc | grep interpreter        # ...-lfs-final-glibc-2.40/lib/ld-linux-aarch64.so.1
+$ $G/bin/gcc -v 2>&1 | grep ^Target                     # Target: aarch64-lfs-linux-gnu
+$ $B/$T-readelf -d $($G/bin/gcc -print-prog-name=cc1plus) | grep -E 'NEEDED|RUNPATH'
+                                                        # libm.so.6, libc.so.6, ld-linux-aarch64.so.1
+                                                        # RUNPATH ...-lfs-final-glibc-2.40/lib
+$ echo | $G/bin/gcc -E -v - 2>&1 | sed -n '/<...> search/,/End of/p'
+                                                        # 4 directories. The last is ...-lfs-final-glibc-2.40/include
+$ printf '#include <limits.h>\nint x = PATH_MAX;\n' | $G/bin/gcc -fsyntax-only -x c - && echo OK
+                                                        # OK
+$ $G/bin/gcc -dumpspecs | grep -A1 '^\*link_ssp'        # %{fstack-protector|...:}  (no -lssp)
+```
+
+| Check | It proves |
+|---|---|
+| `nix path-info -r` | No path of `lfs-temp-*` or of nixpkgs is in the result. |
+| `cc1plus` | The compiler programs use the final glibc. |
+| The search list | gcc reads the headers of `lfs-final-glibc` only. |
+| `PATH_MAX` | The `limits.h` of gcc includes the `limits.h` of glibc. |
+| `link_ssp` | gcc knows that glibc has the stack protector. Programs do not need `libssp.so.0`. |
+
+**If it fails:**
+
+| You see | The cause |
+|---|---|
+| `ld: cannot find crti.o` | The `preBuild` is missing, or it uses `makeFlags`. |
+| The closure has `lfs-temp-glibc` | The attribute uses `stdenv = lfsStdenv`. |
+
+### 2e — `lfsStdenvFinalToolchain` and sample compilation 2
+
+**Do:** add these lines to `lfs-final/default.nix`, after `gcc`:
+
+```nix
+  # The final glibc, binutils and gcc. The other tools are still lfs-temp-*.
+  lfsStdenvFinalToolchain = mkStdenv {
+    name = "lfs-stdenv-final-toolchain";
+    libc = glibc;
+    inherit binutils gcc;
+  };
+
+  # Sample compilation 2.
+  helloFinalToolchain = pkgs.callPackage ../lfs-stdenv/hello { stdenv = lfsStdenvFinalToolchain; };
+```
+
+`inherit binutils gcc` gives `final.binutils` and `final.gcc`, from the same
+`rec` set.
+
+**Verify:**
+
+```console
+$ nix build .#final.helloFinalToolchain -o result-hello-final-toolchain -L
+$ result-hello-final-toolchain/bin/hello                # Hello, world!
+$ nix path-info -r ./result-hello-final-toolchain       # TWO lines: lfs-final-glibc, lfs-hello
+$ $B/$T-readelf -l result-hello-final-toolchain/bin/hello | grep interpreter
+                                                        # ...-lfs-final-glibc-2.40/lib/ld-linux-aarch64.so.1
+$ cat $(nix build --no-link --print-out-paths .#final.lfsStdenvFinalToolchain.cc)/nix-support/orig-cc
+                                                        # ...-lfs-final-gcc-14.2.0
+$ cat $(nix build --no-link --print-out-paths .#final.lfsStdenvFinalToolchain.cc.bintools)/nix-support/orig-bintools
+                                                        # ...-lfs-final-binutils-2.43
+```
+
+The two `orig-` files prove that the wrappers wrap the final gcc and the
+final binutils. The program looks the same as sample compilation 1, but now
+no part of the compiler is `lfs-temp-*`.
+
+Stage 2 is complete. Stage 3 uses `lfsStdenvFinalToolchain`.
+
+## Stages 3 and 4
+
+**Do:**
+
+1. Build the 14 tools of "The packages" (rows 4 to 17) with
+   `stdenv = lfsStdenvFinalToolchain`.
+2. `lfsStdenvFinal`: like step 9, but call `pkgs/build-support/cc-wrapper` and
    `bintools-wrapper` directly, as `stageFun` does. Pass `coreutils`,
    `gnugrep` and `runtimeShell` from the `lfs-final-*` set. That removes the
-   wrapper leak from step 9. Use only `lfs-final-*` packages in
+   wrapper leak from step 9. Use only `lfs-final-*` packages in `shell`,
    `initialPath` and `extraNativeBuildInputs`.
-4. `helloFinal`: `lfs-stdenv/hello` with `stdenv = lfsStdenvFinal`.
-5. Set `disallowedRequisites` on `lfsStdenvFinal` to every `lfs-` and
+3. `helloFinal`: `lfs-stdenv/hello` with `stdenv = lfsStdenvFinal`.
+4. Set `disallowedRequisites` on `lfsStdenvFinal` to every `lfs-` and
    `lfs-temp-` package. The build then fails if one of them leaks in.
 
 **Verify:**
