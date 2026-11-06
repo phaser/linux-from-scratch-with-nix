@@ -20,8 +20,16 @@ From earlier steps: [`nix shell`](appendix-nix-concepts.md#flakes) (step 8).
 **Do:** use the nixpkgs helper `makeInitrd`. It copies the closure of each
 object into `/nix/store` and creates the symlinks.
 
+`makeInitrd` is not a `mkDerivation` that you write. It is a function of
+nixpkgs that returns a derivation. Its output is a compressed cpio archive.
+You give it a `name` and a list of `contents`.
+
+`lfs-distro/initrd/default.nix`:
+
 ```nix
-initrd = pkgs.makeInitrd {
+{ makeInitrd, init, sysenv, etc }:
+
+makeInitrd {
   name = "lfs-initrd";
   contents = [
     { object = init;                symlink = "/init"; }
@@ -30,8 +38,17 @@ initrd = pkgs.makeInitrd {
     { object = "${sysenv}/bin";      symlink = "/usr/bin"; }
     { object = etc;                 symlink = "/etc"; }
   ];
-};
+}
 ```
+
+In `lfs-distro/default.nix`, add the attribute. `callPackage` gives
+`makeInitrd` from `pkgs`. The other three are attributes of step 16:
+
+```nix
+initrd = pkgs.callPackage ./initrd { inherit init sysenv etc; };
+```
+
+In `flake.nix`, add `initrd` to `inherit (distro) …;`.
 
 **Verify the archive:**
 

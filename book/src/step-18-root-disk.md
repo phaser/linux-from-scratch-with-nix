@@ -22,8 +22,17 @@ From earlier steps: [`closureInfo`](appendix-nix-concepts.md#closureinfo) (step 
 closure of `storePaths` into the image, and `populateImageCommands` adds your
 own files. It runs `mkfs.ext4` under `fakeroot`, so files belong to root.
 
+`make-ext4-fs.nix` is not a `mkDerivation` that you write either. It is a
+`callPackage`-style file of the NixOS source: you call it with arguments, and
+it returns a derivation whose output is an ext4 image. It is not a `pkgs`
+attribute, so you give its path.
+
+`lfs-distro/root-image/default.nix`:
+
 ```nix
-rootImage = pkgs.callPackage "${nixpkgs}/nixos/lib/make-ext4-fs.nix" {
+{ callPackage, nixpkgs, sysenv, etc }:
+
+callPackage "${nixpkgs}/nixos/lib/make-ext4-fs.nix" {
   storePaths = [ sysenv etc ];
   volumeLabel = "lfs-root";
   populateImageCommands = ''
@@ -33,8 +42,18 @@ rootImage = pkgs.callPackage "${nixpkgs}/nixos/lib/make-ext4-fs.nix" {
     ln -s ${sysenv}/bin  ./files/usr/bin
     ln -s ${etc}         ./files/etc
   '';
-};
+}
 ```
+
+In `lfs-distro/default.nix`, add the attribute. `callPackage` gives
+`callPackage` itself from `pkgs`. `nixpkgs` is an argument of
+`lfs-distro/default.nix`:
+
+```nix
+rootImage = pkgs.callPackage ./root-image { inherit nixpkgs sysenv etc; };
+```
+
+In `flake.nix`, add `rootImage` to `inherit (distro) …;`.
 
 The kernel mounts `/dev` itself when the root is on a disk
 (`CONFIG_DEVTMPFS_MOUNT`), so there is no `/init` script. The kernel runs

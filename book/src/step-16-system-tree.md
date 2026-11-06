@@ -30,6 +30,54 @@ From earlier steps: [`runCommand`](appendix-nix-concepts.md#trivial-builders-run
    - `(lib.lowPrio busybox)`: busybox also has `ls`, `cat` and so on.
      `lowPrio` makes the GNU tools win each collision.
 
+   `sysenv` is not a stdenv. A stdenv builds packages: it has `setup.sh`,
+   the cc wrapper and `mkDerivation`. `sysenv` builds nothing. It is one
+   directory with `bin/` and `sbin/`, and each file in it is a symlink to a
+   program in one of your packages. Steps 17 and 18 use it as `/bin` and
+   `/sbin` of the new system.
+
+   `lfs-distro/sysenv/default.nix`:
+
+   ```nix
+   { lib, buildEnv, final, busybox, cc }:
+
+   buildEnv {
+     name = "lfs-final-sysenv";
+
+     paths = with final; [
+       # the GNU tools from step 11
+       bash coreutils findutils gnugrep gnused gawk
+       gnutar gzip xz gnumake diffutils gnupatch
+
+       # a compiler and binutils, so that the system can build a program (step 19)
+       cc          # lfsStdenvFinal.cc: the wrapped gcc
+       binutils    # lfs-final-binutils
+
+       # busybox also has ls, cat, awk, ...; lowPrio makes the GNU tools win
+       (lib.lowPrio busybox)
+     ];
+
+     # link only bin/ and sbin/, not include/, share/, lib/ ...
+     pathsToLink = [ "/bin" "/sbin" ];
+   }
+   ```
+
+   In `lfs-distro/default.nix`, add the attribute after `busybox`:
+
+   ```nix
+   sysenv = pkgs.callPackage ./sysenv {
+     inherit final busybox;
+     cc = lfsStdenvFinal.cc;
+   };
+   ```
+
+   - `callPackage` gives `lib` and `buildEnv` from `pkgs`. You give `final`,
+     `busybox` and `cc`.
+   - `busybox` is the attribute of step 15, because the set is `rec`.
+   - Without `lowPrio`, the build stops at the first collision, for example
+     `bin/ls` from coreutils and from busybox.
+   - Only busybox has `sbin/init`, so that link goes to `busybox`.
+
 2. **`etc`** (`lfs-final-etc`): a `runCommand` that writes:
 
    | File | Content |
@@ -65,6 +113,28 @@ From earlier steps: [`runCommand`](appendix-nix-concepts.md#trivial-builders-run
    The `-` in `-/bin/bash` makes it a login shell. The `ttyAMA0` field gives
    it a controlling terminal, so job control works.
 
+   **Starting point.** `etc` is not a `mkDerivation`. `runCommand name env
+   script` is a derivation with one shell script and no phases. The script
+   must create `$out`. Here `$out` is a directory, and each file of the table
+   is a file in it. `lfs-distro/etc/default.nix`:
+
+   ```nix
+   { runCommand }:
+
+   runCommand "lfs-final-etc" { } ''
+     mkdir -p $out
+     echo 'root:x:0:0:root:/root:/bin/bash' > $out/passwd
+     # ... the other files of the table
+     cat > $out/rc <<'EOF'
+     #!/bin/sh
+     # ... the rc script above
+     EOF
+     chmod 0755 $out/rc
+   ''
+   ```
+
+   In `lfs-distro/default.nix`: `etc = pkgs.callPackage ./etc { };`
+
 3. **`init`** (`lfs-final-init`), for the initramfs only. Use
    `pkgs.writeScript`, with the shebang `#!${final.bash}/bin/bash`:
 
@@ -77,6 +147,25 @@ From earlier steps: [`runCommand`](appendix-nix-concepts.md#trivial-builders-run
 
    In an initramfs, the kernel does not mount `/dev` for you. Without a console,
    busybox init has no output.
+
+   **Starting point.** `init` is not a `mkDerivation` either.
+   `writeScript name text` is a derivation whose `$out` is one executable
+   file, not a directory. `${final.bash}` puts the store path of your bash in
+   the shebang. `lfs-distro/init/default.nix`:
+
+   ```nix
+   { writeScript, final }:
+
+   writeScript "lfs-final-init" ''
+     #!${final.bash}/bin/bash
+     # ... the four lines above
+   ''
+   ```
+
+   In `lfs-distro/default.nix`: `init = pkgs.callPackage ./init { inherit final; };`
+
+In `flake.nix`, add the three attributes:
+`inherit (distro) kernel busybox sysenv etc init;`
 
 **Verify:**
 
