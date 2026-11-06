@@ -128,3 +128,63 @@ expected until step 11.
 - Errors about `bool`, `true`, `false` or old-style function declarations:
   the host compiler is nixpkgs gcc 16.2, which uses C23 by default. Add
   `env.NIX_CFLAGS_COMPILE = "-std=gnu17";`.
+
+## Solution
+
+Read this only if you are stuck. Try the hints first.
+
+<details>
+<summary>Show the solution</summary>
+
+`lfs-toolchain/binutils/default.nix`:
+
+```nix
+{ lib, stdenv, fetchurl, texinfo, triple }:
+
+stdenv.mkDerivation rec {
+    pname = "lfs-binutils";
+    version = "2.43";
+
+    src = fetchurl {
+        url = "mirror://gnu/binutils/binutils-${version}.tar.gz";
+        hash = "sha256-AlxDbRUEkHbr5RHSllHMR4XuUCllqIOZNqZVGFgr3WQ=";
+    };
+
+    # The build regenerates the bfd manual's .texi inputs, so make rebuilds
+    # bfd.info and needs makeinfo. LFS lists Texinfo as a host requirement.
+    nativeBuildInputs = [ texinfo ];
+
+    dontAddPrefix = true;
+    preConfigure = "mkdir -p build && cd build";
+    configureScript = "../configure";
+
+    configureFlags = [
+        "--target=${triple}"
+        # $LFS is the store path of this package: $out. The tools go under
+        # $out/tools, as LFS installs them under $LFS/tools.
+        "--prefix=${placeholder "out"}/tools"
+        # No --with-sysroot: there is no sysroot yet. Step 5 makes it.
+        "--disable-nls"
+        "--disable-werror"
+        "--disable-gprofng"           # LFS: --enable-gprofng=no
+        "--enable-default-hash-style=gnu"
+    ];
+
+    meta = {
+        description = "binutils for ${triple}, built from source";
+        platforms = lib.platforms.linux;
+    };
+}
+```
+
+| Part | Why |
+|---|---|
+| `texinfo` in `nativeBuildInputs` | See "If it fails": the build runs `makeinfo`. |
+| `dontAddPrefix = true;` | Without it, stdenv adds `--prefix=$out`, and the tools install in `$out/bin`. |
+| `preConfigure`, `configureScript` | The out-of-tree build of hint 3. |
+| `placeholder "out"` | `$out` is not known in Nix code. See hint 2. |
+
+The file uses the `.tar.gz` archive. The `.tar.xz` archive of hint 1 has a
+different hash. Both are correct.
+
+</details>

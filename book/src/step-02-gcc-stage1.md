@@ -135,3 +135,102 @@ from the host, and the exercise is void.
   a warning. A typo such as `--with-gmp-libs` has no effect. Compare your
   flags with `./configure --help`.
 - gmp, mpfr or mpc not found: `nix log` names the missing file. See hint 4.
+
+## Solution
+
+Read this only if you are stuck. Try the hints first.
+
+<details>
+<summary>Show the solution</summary>
+
+`lfs-toolchain/gcc-stage1/default.nix`:
+
+```nix
+{ lib, stdenv, fetchurl, gmp, mpfr, libmpc, isl, binutils, triple }:
+
+stdenv.mkDerivation rec {
+    pname = "lfs-gcc-stage1";
+    version = "14.2.0";
+
+    src = fetchurl {
+        url = "mirror://gnu/gcc/gcc-${version}/gcc-${version}.tar.xz";
+        hash = "sha256-p7Obxpy/niWCbFpgqyZHcAH3wI2FzsBLwOKcq+1vPMk=";
+    };
+
+    # The nixpkgs libraries, not the sources in the gcc tree: this gcc runs
+    # on the host, so host libraries are correct here.
+    buildInputs = [ gmp mpfr libmpc isl ];
+    hardeningDisable = [ "format" ];
+
+    dontAddPrefix = true;
+    preConfigure = ''
+        # During the build: configure and libgcc find the target tools by name.
+        export PATH=${binutils}/tools/bin:$PATH
+        # The host g++ 16 defaults to C++20, where u8"" literals are char8_t,
+        # and libcody fails. g++ 14 defaults to gnu++17. Not CXXFLAGS: it
+        # comes after the -std=c++11 that the libcody configure check adds.
+        export CXX="g++ -std=gnu++17"
+        mkdir -p build && cd build
+    '';
+    configureScript = "../configure";
+
+    configureFlags = [
+        "--target=${triple}"
+        "--prefix=${placeholder "out"}/tools"
+        # After the build: the driver keeps these paths, so gcc -c works
+        # without binutils on PATH.
+        "--with-as=${binutils}/tools/bin/${triple}-as"
+        "--with-ld=${binutils}/tools/bin/${triple}-ld"
+
+        "--with-gmp-include=${lib.getDev gmp}/include"
+        "--with-gmp-lib=${lib.getLib gmp}/lib"
+        "--with-mpfr-include=${lib.getDev mpfr}/include"
+        "--with-mpfr-lib=${lib.getLib mpfr}/lib"
+        "--with-mpc-include=${lib.getDev libmpc}/include"
+        "--with-mpc-lib=${lib.getLib libmpc}/lib"
+        "--with-isl-include=${lib.getDev isl}/include"
+        "--with-isl-lib=${lib.getLib isl}/lib"
+
+        # Dropped LFS flags:
+        #   --with-sysroot=$LFS          there is no sysroot yet; step 6 adds it
+        #   --with-glibc-version=2.40    no program links glibc here; step 8 needs it
+        #   --enable-default-pie, --enable-default-ssp
+        #                                default flags for the final programs;
+        #                                stage 1 builds only libgcc
+        #   --enable-languages=c,c++     C only: no libc, so no libstdc++
+        "--with-newlib"
+        "--without-headers"
+        "--enable-languages=c"
+        "--disable-nls"
+        "--disable-shared"
+        "--disable-multilib"
+        "--disable-threads"
+        "--disable-libatomic"
+        "--disable-libgomp"
+        "--disable-libquadmath"
+        "--disable-libssp"
+        "--disable-libvtv"
+        "--disable-libstdcxx"
+        "--disable-bootstrap"          # not in LFS: a cross compiler does not bootstrap
+    ];
+
+    meta = {
+        description = "stage-1 C compiler for ${triple}";
+        platforms = lib.platforms.linux;
+    };
+}
+```
+
+The line in `lfs-toolchain/default.nix`:
+
+```nix
+gccStage1 = callPackage ./gcc-stage1 { inherit triple binutils; };
+```
+
+| Problem | Solution |
+|---|---|
+| During the build | `preConfigure` puts `${binutils}/tools/bin` on `PATH`. stdenv adds only `${binutils}/bin`, which does not exist (hint 1). |
+| After the build | `--with-as` and `--with-ld` store the full paths in the driver (hint 3). |
+| gmp, mpfr, mpc, isl | `lib.getDev` gives the headers, `lib.getLib` gives the libraries (hint 4). |
+
+</details>

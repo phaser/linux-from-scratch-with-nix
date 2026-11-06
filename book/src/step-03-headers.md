@@ -98,3 +98,67 @@ $ nix hash convert --hash-algo sha256 --to sri <hex-from-the-line-above>
 
 **If it fails:** a tool is missing from the sandbox. Add it to
 `nativeBuildInputs` (for example `perl`, `bison` or `flex`).
+
+## Solution
+
+Read this only if you are stuck. Try the hints first.
+
+<details>
+<summary>Show the solution</summary>
+
+`lfs-toolchain/linux-headers/default.nix`:
+
+```nix
+{ lib, stdenv, fetchurl }:
+
+stdenv.mkDerivation rec {
+    pname = "lfs-linux-headers";
+    version = "6.12";
+
+    src = fetchurl {
+        url = "http://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${version}.tar.xz";
+        hash = "sha256-saJWK+VuQq+z+EidTCp6xHKsIwmPHvHB5A2mAfVGJes=";
+    };
+
+    dontConfigure = true;
+
+    buildPhase = ''
+        runHook preBuild
+        make mrproper
+        make headers
+        runHook postBuild
+    '';
+
+    installPhase = ''
+        runHook preInstall
+        find usr/include -type f ! -name '*.h' -delete
+        mkdir -p $out/usr/include
+        cp -r usr/include/. $out/usr/include
+        runHook postInstall
+    '';
+
+    meta = {
+        description = "Linux ${version} userspace headers";
+        platforms = lib.platforms.linux;
+    };
+}
+```
+
+The line in `lfs-toolchain/default.nix`:
+
+```nix
+headers = callPackage ./linux-headers { };
+```
+
+| Part | Why |
+|---|---|
+| `dontConfigure = true;` | The kernel has no `./configure` (hint 1). |
+| `make mrproper`, `make headers` | The two commands of LFS. |
+| `find ... -delete` | LFS removes each file that is not a header. |
+| `runHook` lines | The hooks of each phase still run (hint 2). |
+
+This solution does not set `ARCH`. The build machine is aarch64, so the kernel
+build gets `arm64` from `uname -m` (hint 3). `make ARCH=arm64 headers` also
+works, and does not depend on the build machine.
+
+</details>
