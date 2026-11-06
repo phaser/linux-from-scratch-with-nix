@@ -116,22 +116,50 @@ From earlier steps: [`runCommand`](appendix-nix-concepts.md#trivial-builders-run
    **Starting point.** `etc` is not a `mkDerivation`. `runCommand name env
    script` is a derivation with one shell script and no phases. The script
    must create `$out`. Here `$out` is a directory, and each file of the table
-   is a file in it. `lfs-distro/etc/default.nix`:
+   is a file in it. `lfs-distro/etc/default.nix` writes all six files:
 
    ```nix
    { runCommand }:
 
    runCommand "lfs-final-etc" { } ''
      mkdir -p $out
+
      echo 'root:x:0:0:root:/root:/bin/bash' > $out/passwd
-     # ... the other files of the table
+     echo 'root:x:0:'                       > $out/group
+     echo 'lfs'                             > $out/hostname
+
+     cat > $out/profile <<'EOF'
+     export PATH=/bin:/sbin
+     PS1='\u@\h:\w\$ '
+     EOF
+
+     cat > $out/inittab <<'EOF'
+     ::sysinit:/etc/rc
+     ttyAMA0::respawn:-/bin/bash -l
+     ::ctrlaltdel:/sbin/reboot
+     ::shutdown:/bin/umount -a -r
+     EOF
+
      cat > $out/rc <<'EOF'
      #!/bin/sh
-     # ... the rc script above
+     mkdir -p /proc /sys /dev /tmp /root
+     mountpoint -q /proc || mount -t proc proc /proc
+     mountpoint -q /sys  || mount -t sysfs sysfs /sys
+     mountpoint -q /dev  || mount -t devtmpfs devtmpfs /dev
+     hostname -F /etc/hostname
+     echo "lfs: rc done"
      EOF
      chmod 0755 $out/rc
    ''
    ```
+
+   The `''` string removes the common indentation, so each `EOF` is at
+   column 0 and the heredocs end correctly. Each heredoc uses `'EOF'`, so the
+   shell does not expand `$` in the text.
+
+   If `/etc/inittab` is missing, busybox init does not fail. It uses a
+   built-in default, prints `can't run '/etc/init.d/rcS'`, and gives a shell
+   with no `/proc`, `/sys` or `/dev`.
 
    In `lfs-distro/default.nix`: `etc = pkgs.callPackage ./etc { };`
 
@@ -174,6 +202,7 @@ $ nix build .#sysenv -o result-sysenv
 $ readlink -f result-sysenv/bin/ls                 # ...-lfs-final-coreutils-.../bin/ls (GNU wins)
 $ readlink -f result-sysenv/sbin/init              # ...-lfs-final-busybox-.../bin/busybox
 $ readlink -f result-sysenv/bin/gcc                # ...-gcc-wrapper-.../bin/gcc
-$ nix build .#etc -o result-etc && cat result-etc/inittab
+$ nix build .#etc -o result-etc && ls result-etc     # group hostname inittab passwd profile rc
+$ cat result-etc/inittab                           # ::sysinit:/etc/rc as the first line
 $ result-sysenv/bin/bash -n result-etc/rc && echo syntax ok    # syntax ok
 ```
