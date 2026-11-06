@@ -342,6 +342,8 @@ On an aarch64-linux machine, `.#binutils` is short for
 
 - Run every command **in your Linux environment of step 0** (the VM, the
   container or the machine), in the repo directory.
+- The prompt shows where a command runs. `$` is the environment of step 0,
+  which has Nix. `#` is the QEMU guest of steps 17 to 19, which has no Nix.
 - Some commands need the absolute path of the repo. They use `/work`, which is
   the path in the container of route 0b. On another route, use the path of
   your repo.

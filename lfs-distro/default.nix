@@ -16,4 +16,5 @@ rec {
     etc = pkgs.callPackage ./etc { };
     init = pkgs.callPackage ./init { inherit final; };
     initrd = pkgs.callPackage ./initrd { inherit init sysenv etc; };
+    rootImage = pkgs.callPackage ./root-image { inherit nixpkgs sysenv etc; };
 }
