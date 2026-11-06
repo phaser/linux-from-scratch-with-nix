@@ -62,7 +62,7 @@ phase must call `runHook preBuild` and `runHook postBuild` (or `preInstall` and
 <summary>Hint 3: the architecture</summary>
 
 The kernel build reads the architecture from `uname -m` when you do not set
-`ARCH`. In the VM, that gives `arm64`. Think about whether you want to depend on
+`ARCH`. On aarch64, that gives `arm64`. Think about whether you want to depend on
 that, or set it.
 
 </details>

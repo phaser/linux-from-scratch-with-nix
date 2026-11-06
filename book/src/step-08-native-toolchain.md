@@ -333,7 +333,7 @@ and gcc then finds the host libraries.
    ```
 
 5. Test the patch before the full build. A test takes seconds, and a gcc
-   build takes much longer. Run this in the container:
+   build takes much longer. Run this in your Linux environment:
 
    ```console
    $ cd $(mktemp -d)

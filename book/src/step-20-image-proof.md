@@ -6,7 +6,7 @@ From earlier steps: [references and closures](appendix-nix-concepts.md#reference
 
 ---
 
-Run these checks in the VM, not in the guest.
+Run these checks in your Linux environment of step 0, not in the guest.
 
 ```console
 # 1. The closure of everything in the image: only your packages and their wrappers.

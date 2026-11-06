@@ -102,7 +102,7 @@ The `libc.so` check shows absolute paths under `/usr/lib`. The linker resolves
 them inside the sysroot only when it finds the script inside the sysroot. Step 5
 depends on this.
 
-The loader check runs your `ld.so` directly. This works because the VM and the
+The loader check runs your `ld.so` directly. This works because the build machine and the
 target are both aarch64.
 
 `nix path-info -r` can show a nixpkgs `bash`. `patchShebangs` rewrote

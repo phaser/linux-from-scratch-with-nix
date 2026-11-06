@@ -47,10 +47,14 @@ $ tart stop lfs; tart run lfs --no-graphics --nested &
 **Do (0b, Docker container):** nothing. The Docker VM on the Mac gives the
 container no KVM. QEMU uses TCG.
 
+**Do (0c, aarch64 Linux machine):** nothing, if `/dev/kvm` exists. Your user
+must be able to open it; on many distributions, it must be in the `kvm`
+group. A cloud VM often has no `/dev/kvm`. Then QEMU uses TCG.
+
 **Verify** (in the VM or in the container):
 
 ```console
-$ ls -l /dev/kvm                                   # 0a: exists. 0b: No such file or directory
+$ ls -l /dev/kvm                                   # 0a: exists. 0b: No such file or directory. 0c: either
 $ nix shell nixpkgs#qemu -c qemu-system-aarch64 --version | head -1
                                                    # QEMU emulator version ...
 ```
@@ -59,7 +63,7 @@ The QEMU commands in steps 17 and 18 use KVM:
 
 | Route | QEMU options |
 |---|---|
-| 0a, with `/dev/kvm` | `-accel kvm -cpu host` |
+| 0a, or 0c with `/dev/kvm` | `-accel kvm -cpu host` |
 | 0b, or no `/dev/kvm` | `-accel tcg -cpu max` |
 
 In the container, QEMU runs in the terminal of `docker compose run`

@@ -91,10 +91,11 @@ hammers are binutils, gcc and glibc.
 
 ### Part 0 — A room to work in
 
-**What:** a Linux machine with Nix: a VM or a container.
+**What:** an aarch64 Linux machine with Nix: your own machine, a VM or a
+container.
 
-**Why:** your Mac cannot run Linux programs, and its disk does not see a
-difference between `a` and `A`. The Linux kernel source has files whose names
+**Why:** the checks run Linux programs. macOS cannot run them, and the macOS
+disk does not see a difference between `a` and `A`. The Linux kernel source has files whose names
 differ only in case. Nix also gives each build a **sandbox**: a closed room
 that contains only the things you give to the build. If a build uses
 something that you did not give it, the build fails. You see the error at
@@ -339,8 +340,11 @@ On an aarch64-linux machine, `.#binutils` is short for
 
 ## Conventions
 
-- Run every command **inside the Linux VM or the container** (step 0), in the
-  repo directory.
+- Run every command **in your Linux environment of step 0** (the VM, the
+  container or the machine), in the repo directory.
+- Some commands need the absolute path of the repo. They use `/work`, which is
+  the path in the container of route 0b. On another route, use the path of
+  your repo.
 - Give every build its own out-link with `-o`, so the results of earlier steps
   stay available:
 

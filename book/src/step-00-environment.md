@@ -1,32 +1,38 @@
 # Step 0 — A Linux environment with Nix
 
-None of this builds on `aarch64-darwin`:
+You need an aarch64 Linux system with Nix, the Nix sandbox, and a
+case-sensitive `/nix`. The flake pins `system = "aarch64-linux"`.
 
-- The flake pins `system = "aarch64-linux"`.
+The book targets aarch64 only. An x86_64 machine needs changes in several
+steps (the triple, gcc, glibc, the kernel and QEMU). This book does not
+describe them.
+
+A Mac with Apple silicon cannot build the book directly:
+
 - The kernel headers need a case-sensitive file system. The macOS `/nix`
   volume is case-insensitive APFS.
 - macOS cannot execute the Linux binaries that the checks run.
 
-You need an aarch64 Linux system with Nix, the Nix sandbox, and a
-case-sensitive `/nix`. This step gives two routes. Do one of them:
+This step gives three routes. Do the one that fits your computer:
 
-| | 0a — Tart VM | 0b — Docker container |
-|---|---|---|
-| Runs on | A Linux VM (Ubuntu), with SSH | A container in the Docker VM |
-| The repo | A copy in the VM (`rsync`) | The Mac folder, mounted at `/work` |
-| The store | The VM disk | The `lfs-nix-store` volume |
-| Edit files | Copy them again after each change, or edit in the VM | Edit on the Mac. The container sees the change at once. |
-| `result-*` links | Work in the VM | Work only in the container |
-| `git push` | From the VM, if it has your key | From the Mac only. The container has no `ssh`. |
-| KVM for QEMU (Part 4) | Yes (`--nested`) | No. Use `-accel tcg -cpu max`. |
+| | 0a — Tart VM | 0b — Docker container | 0c — aarch64 Linux machine |
+|---|---|---|---|
+| For | A Mac with Apple silicon | A Mac with Apple silicon | A Linux machine, VM or board on aarch64 |
+| Runs on | A Linux VM (Ubuntu), with SSH | A container in the Docker VM | The machine itself |
+| The repo | A copy in the VM (`rsync`) | The host folder, mounted at `/work` | Your clone |
+| The store | The VM disk | The `lfs-nix-store` volume | `/nix` on the machine |
+| Edit files | Copy them again after each change, or edit in the VM | Edit on the host. The container sees the change at once. | Edit in place |
+| `result-*` links | Work in the VM | Work only in the container | Work |
+| `git push` | From the VM, if it has your key | From the host only. The container has no `ssh`. | As usual |
+| KVM for QEMU (Part 4) | Yes (`--nested`) | No on macOS. Use `-accel tcg -cpu max`. | If `/dev/kvm` exists |
 
 **Nix concepts for this step**
 
 New in this step:
 
 - **The store.** Nix keeps each package in `/nix/store`. Step 3 needs a
-  case-sensitive file system, so the store is on the disk of the VM, or in a
-  Docker volume. It is not on the Mac. [More](appendix-nix-concepts.md#the-store).
+  case-sensitive file system. On a Mac, the store is on the disk of the VM, or
+  in a Docker volume, not on the macOS volume. [More](appendix-nix-concepts.md#the-store).
 - **The sandbox.** Each build runs isolated, with only its declared inputs and
   no network. `nix config show sandbox` must print `true`. Without the sandbox,
   a build can use host files, and the checks of this book prove nothing.
@@ -51,7 +57,7 @@ New in this step:
 $ tart clone ghcr.io/cirruslabs/ubuntu:latest lfs
 $ tart set lfs --cpu 8 --memory 16384 --disk-size 80
 $ tart run lfs --no-graphics --nested &          # --nested: KVM for QEMU in Part 4
-$ rsync -a ~/projects/my-linux-distro admin@$(tart ip lfs):   # password: admin
+$ rsync -a my-linux-distro admin@$(tart ip lfs):   # in the parent directory of the repo; password: admin
 $ ssh admin@$(tart ip lfs)
 ```
 
@@ -75,6 +81,8 @@ Then do the checks in "Verify" below.
 You need Docker on an Apple silicon Mac (Docker Desktop, OrbStack, or Colima).
 The Docker VM is aarch64 Linux, so the container is aarch64 too. In the Docker
 settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
+This route also works with Docker on an aarch64 Linux machine, but route 0c
+is simpler there.
 
 1. Write the `Dockerfile`. It installs Nix in Ubuntu, with the sandbox on:
 
@@ -98,7 +106,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
 
    ENV PATH="/nix/var/nix/profiles/default/bin:${PATH}"
 
-   # The mounted repo belongs to the Mac user, not root; git refuses it without this.
+   # The mounted repo belongs to the host user, not root; git refuses it without this.
    RUN git config --system --add safe.directory '*'
 
    WORKDIR /work
@@ -114,7 +122,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
    | `--init none` | A container has no systemd, so the installer must not set up the daemon. |
    | `store = local` | With no daemon, root uses the store directly. |
    | `sandbox = true`, `sandbox-fallback = false` | Every build runs in the sandbox. If the sandbox cannot start, the build fails. It does not run without the sandbox. |
-   | `safe.directory '*'` | The mounted repo belongs to your Mac user, and the container runs as root. Without this line, git refuses the repo. |
+   | `safe.directory '*'` | The mounted repo belongs to your user on the host, and the container runs as root. Without this line, git refuses the repo. |
 
 2. Write `docker-compose.yml`:
 
@@ -140,7 +148,7 @@ settings, give the VM 8 CPUs and 16 GB of memory or more, as for the Tart VM.
    |---|---|
    | `privileged: true` | The sandbox needs mount and user namespaces. Without them, every build fails. |
    | `nix-store:/nix` | The store is in a named volume. It is on the Linux side of Docker, so it is case-sensitive. It also stays when the container stops. On the first run, Docker copies the `/nix` of the image into the volume. |
-   | `.:/work` | The repo folder on the Mac. This folder is case-insensitive. That is not a problem: Nix copies the flake into the store before it builds. |
+   | `.:/work` | The repo folder on the host. On macOS, this folder is case-insensitive. That is not a problem: Nix copies the flake into the store before it builds. |
    | `stdin_open`, `tty` | An interactive shell. |
 
 3. Build the image and open a shell:
@@ -172,15 +180,33 @@ $ docker compose build && docker volume rm lfs-nix-store
 ```
 
 The `result-*` links point into the volume, so they work only in the
-container. On the Mac they show as broken links. Run git commands on the
-Mac. The container has no git identity, no `ssh` and no key.
+container. On the host they show as broken links. Run git commands on the
+host. The container has no git identity, no `ssh` and no key.
+
+## 0c — An aarch64 Linux machine
+
+Use this route when you already have aarch64 Linux: a cloud VM, a server, or
+a board. Give it 8 CPUs, 16 GB of memory and 80 GB of disk, or more.
+
+**Do** (on the machine):
+
+```console
+$ curl -fsSL https://install.determinate.systems/nix | sh -s -- install --no-confirm
+$ . /nix/var/nix/profiles/default/etc/profile.d/nix-daemon.sh
+$ cd my-linux-distro
+```
+
+On Linux, Nix turns on the sandbox by default. `/nix` is on a Linux file
+system such as ext4, so it is case-sensitive. The checks in "Verify" below
+prove both.
 
 ## The start files
 
 **Files to write:** `flake.nix` and `lfs-toolchain/default.nix`. Copy
 `flake.lock` from this repo, so that you get the same nixpkgs.
 
-Do this in the repo directory: on the Mac for 0b, in the VM for 0a.
+Do this in the repo directory: in the VM for 0a, on the host for 0b, on the
+machine for 0c.
 
 1. Write `flake.nix`:
 
@@ -229,7 +255,7 @@ Do this in the repo directory: on the Mac for 0b, in the VM for 0a.
 
 ## Verify
 
-Run these checks in the VM (0a) or in the container (0b):
+Run these checks in the VM (0a), in the container (0b) or on the machine (0c):
 
 ```console
 $ uname -m                                   # aarch64
@@ -246,17 +272,17 @@ For 0b, also do these checks:
 ```console
 $ nix config show sandbox-fallback           # false
 $ nix config show store                      # local
-$ d=$(mktemp -d -p /work); touch $d/a $d/A; ls $d | wc -l; rm -r $d   # 1: /work is the Mac folder
+$ d=$(mktemp -d -p /work); touch $d/a $d/A; ls $d | wc -l; rm -r $d   # on macOS 1: /work is the Mac folder
 ```
 
-The last check shows why the store must be in the volume: `/work` is
-case-insensitive.
+On macOS, the last check shows why the store must be in the volume: `/work`
+is case-insensitive.
 
 **If it fails (0b):**
 
 - Every build fails, with an error about namespaces or the sandbox: the
   container is not privileged. Check `privileged: true`.
 - `uname -m` shows `x86_64`: the Docker VM is not aarch64. This route needs an
-  Apple silicon Mac.
+  Apple silicon Mac or an aarch64 Linux machine.
 - `fatal: detected dubious ownership in repository at '/work'`: the image does
   not have the `safe.directory` line. Build the image again.
