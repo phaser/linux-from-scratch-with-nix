@@ -4,8 +4,8 @@ You write three derivations: binutils, gcc stage 1 and the kernel headers.
 Each one goes in its own directory under `lfs-toolchain/`. The host compiler
 builds all three, as in LFS pass 1.
 
-These three chapters are exercises: each one gives the requirements and some
-hints, not the full file. Run all the checks before you continue.
+Each chapter gives the full file and the reason for each line. Run all the
+checks before you continue.
 
 Chapters in this part:
 

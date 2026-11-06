@@ -22,8 +22,7 @@ New in this step:
   build, install and fixup. Attributes change a phase:
   `configureFlags = [ "--disable-nls" ];` adds flags to `./configure`. A hook is
   a shell fragment that runs before or after a phase:
-  `postInstall = "rm -r $out/share/info";`. Hint 3 names the hook and the
-  attribute that you need.
+  `postInstall = "rm -r $out/share/info";`. This step uses `preConfigure`.
   [More](appendix-nix-concepts.md#stdenvmkderivation-and-phases).
 - **Fixed-output derivations.** `fetchurl { url = …; hash = …; }` is the only
   kind of build with network, because Nix checks the result against the hash.
@@ -51,50 +50,76 @@ From earlier steps: [the store](appendix-nix-concepts.md#the-store) (step 0), [f
 
 ---
 
-**Do:** write a derivation that meets these requirements.
+**Do:**
 
-1. The file is a function of `{ lib, stdenv, fetchurl, triple }`. Add the
-   attribute to the set in `lfs-toolchain/default.nix`:
-   `binutils = callPackage ./binutils { inherit triple; };`. Then run
-   `git add lfs-toolchain/binutils`.
-2. The source is binutils **2.43** from the GNU mirror (`mirror://gnu/...`).
-   The later chapters expect this version.
-3. The build is out of tree, in a `build/` directory, as in LFS.
-4. The tools install under `$out/tools`, as LFS installs under `$LFS/tools`.
-5. Take the configure flags from LFS and translate each one. Two of them need a
-   decision. Write your reason in a comment:
-   - `--prefix=$LFS/tools`: what is the Nix equivalent of `$LFS`?
-   - `--with-sysroot=$LFS`: is there a sysroot yet?
-6. `meta.platforms` says that it builds only on Linux.
+1. Write `lfs-toolchain/binutils/default.nix`:
 
-<details>
-<summary>Hint 1: the source hash</summary>
+   ```nix
+   { lib, stdenv, fetchurl, texinfo, triple }:
 
-Set `hash = lib.fakeHash;` and build. The build fails and prints the real hash
-after `got:`. Copy it into the file. Or ask Nix before you build:
+   stdenv.mkDerivation rec {
+       pname = "lfs-binutils";
+       version = "2.43";
 
-```console
-$ nix store prefetch-file https://ftp.gnu.org/gnu/binutils/binutils-2.43.tar.xz
-```
+       src = fetchurl {
+           url = "mirror://gnu/binutils/binutils-${version}.tar.gz";
+           hash = "sha256-AlxDbRUEkHbr5RHSllHMR4XuUCllqIOZNqZVGFgr3WQ=";
+       };
 
-</details>
+       # The build regenerates the bfd manual's .texi inputs, so make rebuilds
+       # bfd.info and needs makeinfo. LFS lists Texinfo as a host requirement.
+       nativeBuildInputs = [ texinfo ];
 
-<details>
-<summary>Hint 2: the prefix</summary>
+       dontAddPrefix = true;
+       preConfigure = "mkdir -p build && cd build";
+       configureScript = "../configure";
 
-stdenv adds `--prefix=$out` to the configure flags itself. Look up
-`dontAddPrefix`. In Nix code, `$out` is not known yet: look up
-`placeholder "out"`.
+       configureFlags = [
+           "--target=${triple}"
+           "--prefix=${placeholder "out"}/tools"
+           "--disable-nls"
+           "--disable-werror"
+           "--disable-gprofng"
+           "--enable-default-hash-style=gnu"
+       ];
 
-</details>
+       meta = {
+           description = "binutils for ${triple}, built from source";
+           platforms = lib.platforms.linux;
+       };
+   }
+   ```
 
-<details>
-<summary>Hint 3: the out-of-tree build</summary>
+   | Line | Why |
+   |---|---|
+   | `{ lib, stdenv, fetchurl, texinfo, triple }` | `callPackage` gives the nixpkgs values. You give `triple` in item 2. |
+   | `version = "2.43"` | The later chapters expect this version. |
+   | `hash` | Nix checks the download against it. To get a hash, set `hash = lib.fakeHash;` and build: the error prints the real hash after `got:`. Or run `nix store prefetch-file <url>`. |
+   | `nativeBuildInputs = [ texinfo ]` | The build runs `makeinfo` for the bfd manual. Without it: `makeinfo: not found`, then `Error 127` at `doc/bfd.info`. |
+   | `preConfigure`, `configureScript` | The build is out of tree, in `build/`, as in LFS. `preConfigure` runs before the configure phase. `configureScript` tells stdenv where `configure` is. |
+   | `meta.platforms` | The build stops on a system that is not Linux. |
 
-You need a hook that runs before configure, and a way to tell stdenv where the
-configure script is. Look up `preConfigure` and `configureScript`.
+   The configure flags come from LFS. The table shows how each one changes:
 
-</details>
+   | LFS flag | This file | Why |
+   |---|---|---|
+   | `--prefix=$LFS/tools` | `--prefix=${placeholder "out"}/tools` and `dontAddPrefix = true;` | `$LFS` becomes `$out`, the store path of this package. The tools install under `$out/tools`, as LFS installs them under `$LFS/tools`. stdenv adds `--prefix=$out` itself, and `dontAddPrefix` stops that. In Nix code, `$out` is not known yet, so `placeholder "out"` stands for it. |
+   | `--with-sysroot=$LFS` | removed | There is no sysroot yet. Step 5 makes it. The `SEARCH_DIR` check below shows the result. |
+   | `--target=$LFS_TGT` | `--target=${triple}` | `triple` is `aarch64-lfs-linux-gnu`. |
+   | `--enable-gprofng=no` | `--disable-gprofng` | The same meaning. |
+   | `--disable-nls`, `--disable-werror`, `--enable-default-hash-style=gnu` | the same | As in LFS. |
+
+2. Add the attribute to the set in `lfs-toolchain/default.nix`:
+
+   ```nix
+   binutils = callPackage ./binutils { inherit triple; };
+   ```
+
+3. Make git track the new file:
+
+   ```console
+   $ git add lfs-toolchain/binutils
+   ```
 
 **Build:**
 
@@ -118,73 +143,11 @@ expected until step 11.
 
 **If it fails:**
 
-- After the hash, read the end of the log with `nix log`.
-- `makeinfo: not found`, then `Error 127` at `doc/bfd.info`: the build
-  regenerates the inputs of the bfd manual, so `make` rebuilds it. Add
-  `texinfo` to `nativeBuildInputs`. LFS lists Texinfo as a host requirement,
-  so the LFS book never shows this failure.
+- Read the end of the log with `nix log ./result-binutils`.
+- `hash mismatch`: the URL or the version is different from the file above.
+  Copy the hash after `got:`.
 - `bad value ... for enable-default-hash-style option`: the `ld` configure
   accepts only `sysv`, `gnu` or `both`. It runs late, after `bfd` builds.
 - Errors about `bool`, `true`, `false` or old-style function declarations:
   the host compiler is nixpkgs gcc 16.2, which uses C23 by default. Add
   `env.NIX_CFLAGS_COMPILE = "-std=gnu17";`.
-
-## Solution
-
-Read this only if you are stuck. Try the hints first.
-
-<details>
-<summary>Show the solution</summary>
-
-`lfs-toolchain/binutils/default.nix`:
-
-```nix
-{ lib, stdenv, fetchurl, texinfo, triple }:
-
-stdenv.mkDerivation rec {
-    pname = "lfs-binutils";
-    version = "2.43";
-
-    src = fetchurl {
-        url = "mirror://gnu/binutils/binutils-${version}.tar.gz";
-        hash = "sha256-AlxDbRUEkHbr5RHSllHMR4XuUCllqIOZNqZVGFgr3WQ=";
-    };
-
-    # The build regenerates the bfd manual's .texi inputs, so make rebuilds
-    # bfd.info and needs makeinfo. LFS lists Texinfo as a host requirement.
-    nativeBuildInputs = [ texinfo ];
-
-    dontAddPrefix = true;
-    preConfigure = "mkdir -p build && cd build";
-    configureScript = "../configure";
-
-    configureFlags = [
-        "--target=${triple}"
-        # $LFS is the store path of this package: $out. The tools go under
-        # $out/tools, as LFS installs them under $LFS/tools.
-        "--prefix=${placeholder "out"}/tools"
-        # No --with-sysroot: there is no sysroot yet. Step 5 makes it.
-        "--disable-nls"
-        "--disable-werror"
-        "--disable-gprofng"           # LFS: --enable-gprofng=no
-        "--enable-default-hash-style=gnu"
-    ];
-
-    meta = {
-        description = "binutils for ${triple}, built from source";
-        platforms = lib.platforms.linux;
-    };
-}
-```
-
-| Part | Why |
-|---|---|
-| `texinfo` in `nativeBuildInputs` | See "If it fails": the build runs `makeinfo`. |
-| `dontAddPrefix = true;` | Without it, stdenv adds `--prefix=$out`, and the tools install in `$out/bin`. |
-| `preConfigure`, `configureScript` | The out-of-tree build of hint 3. |
-| `placeholder "out"` | `$out` is not known in Nix code. See hint 2. |
-
-The file uses the `.tar.gz` archive. The `.tar.xz` archive of hint 1 has a
-different hash. Both are correct.
-
-</details>

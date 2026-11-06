@@ -12,7 +12,7 @@ no libc, do not look for one". It can emit object files and cannot link.
 New in this step:
 
 - **`nativeBuildInputs` and `PATH`.** For each input, stdenv adds one
-  directory to `PATH`, and only that one. Hint 1 shows which directory.
+  directory to `PATH`, and only that one: `<input>/bin`.
   [More](appendix-nix-concepts.md#nativebuildinputs-buildinputs-and-path).
 - **A package in a string.** `"${binutils}/tools/bin"` gives the store path
   of `binutils` and makes it an input of the build. You can use it in
@@ -31,64 +31,124 @@ From earlier steps: [`stdenv.mkDerivation` and phases](appendix-nix-concepts.md#
 
 ---
 
-**Do:** write a derivation that meets these requirements.
+**Do:**
 
-1. The file is a function of
-   `{ lib, stdenv, fetchurl, gmp, mpfr, libmpc, isl, binutils, triple }`.
-   Pass `binutils` from step 1 when you call it.
-2. The source is gcc **14.2.0** from the GNU mirror.
-3. Out-of-tree build, and install under `$out/tools`, as in step 1.
-4. C only. No libc, no shared libgcc, no threads, and none of the runtime
-   libraries that LFS disables in pass 1.
-5. gmp, mpfr and mpc: LFS unpacks their sources into the gcc tree. You can do
-   the same, or use the nixpkgs libraries (they link into the compiler, which
-   runs on the host). Write your choice in a comment.
-6. For each LFS flag that you drop, write the reason in a comment.
+1. Write `lfs-toolchain/gcc-stage1/default.nix`:
 
-**The problem to solve.** In LFS, binutils and gcc share `$LFS/tools`, so gcc
-finds `aarch64-lfs-linux-gnu-as` and `-ld` in its own prefix. Here, binutils is
-a separate store path. Your gcc must find the binutils from step 1 in two
-situations:
+   ```nix
+   { lib, stdenv, fetchurl, gmp, mpfr, libmpc, isl, binutils, triple }:
 
-- **During the build**: configure and the libgcc build look up the target tools
-  by name (`aarch64-lfs-linux-gnu-ar`, `-as`, and so on).
-- **After the build**: when you run `gcc -c` from `result-gcc1`, with no
-  binutils on your `PATH`.
+   stdenv.mkDerivation rec {
+       pname = "lfs-gcc-stage1";
+       version = "14.2.0";
 
-The check `-print-prog-name=as` below tells you whether your solution works.
+       src = fetchurl {
+           url = "mirror://gnu/gcc/gcc-${version}/gcc-${version}.tar.xz";
+           hash = "sha256-p7Obxpy/niWCbFpgqyZHcAH3wI2FzsBLwOKcq+1vPMk=";
+       };
 
-<details>
-<summary>Hint 1: why <code>nativeBuildInputs = [ binutils ]</code> is not enough</summary>
+       buildInputs = [ gmp mpfr libmpc isl ];
+       hardeningDisable = [ "format" ];
 
-For each input, stdenv adds one directory to `PATH`. Find which one in
-`pkgs/stdenv/generic/setup.sh` (search for `addToSearchPath _PATH`). Then
-compare it with where step 1 installs the tools.
+       dontAddPrefix = true;
+       preConfigure = ''
+           export PATH=${binutils}/tools/bin:$PATH
+           # The host g++ 16 defaults to C++20, where u8"" literals are char8_t,
+           # and libcody fails. g++ 14 defaults to gnu++17. Not CXXFLAGS: it
+           # comes after the -std=c++11 that the libcody configure check adds.
+           export CXX="g++ -std=gnu++17"
+           mkdir -p build && cd build
+       '';
+       configureScript = "../configure";
 
-</details>
+       configureFlags = [
+           "--target=${triple}"
+           "--prefix=${placeholder "out"}/tools"
+           "--with-as=${binutils}/tools/bin/${triple}-as"
+           "--with-ld=${binutils}/tools/bin/${triple}-ld"
 
-<details>
-<summary>Hint 2: during the build</summary>
+           "--with-gmp-include=${lib.getDev gmp}/include"
+           "--with-gmp-lib=${lib.getLib gmp}/lib"
+           "--with-mpfr-include=${lib.getDev mpfr}/include"
+           "--with-mpfr-lib=${lib.getLib mpfr}/lib"
+           "--with-mpc-include=${lib.getDev libmpc}/include"
+           "--with-mpc-lib=${lib.getLib libmpc}/lib"
+           "--with-isl-include=${lib.getDev isl}/include"
+           "--with-isl-lib=${lib.getLib isl}/lib"
 
-`preConfigure` is a shell fragment. It can change `PATH`.
+           "--with-newlib"
+           "--without-headers"
+           "--enable-languages=c"
+           "--disable-nls"
+           "--disable-shared"
+           "--disable-multilib"
+           "--disable-threads"
+           "--disable-libatomic"
+           "--disable-libgomp"
+           "--disable-libquadmath"
+           "--disable-libssp"
+           "--disable-libvtv"
+           "--disable-libstdcxx"
+           "--disable-bootstrap"
+       ];
 
-</details>
+       meta = {
+           description = "stage-1 C compiler for ${triple}";
+           platforms = lib.platforms.linux;
+       };
+   }
+   ```
 
-<details>
-<summary>Hint 3: after the build</summary>
+   | Line | Why |
+   |---|---|
+   | `binutils` in the arguments | The binutils of step 1. You give it in item 2. |
+   | `version = "14.2.0"` | The gcc of LFS 12.2. |
+   | `dontAddPrefix`, `--prefix`, `preConfigure`, `configureScript` | Out-of-tree build, and install under `$out/tools`, as in step 1. |
+   | `export PATH=${binutils}/tools/bin:$PATH` | gcc finds binutils during the build. See below. |
+   | `--with-as`, `--with-ld` | gcc finds binutils after the build. See below. |
+   | `buildInputs = [ gmp mpfr libmpc isl ]` and the `--with-gmp...` flags | LFS unpacks the gmp, mpfr and mpc sources into the gcc tree. This file uses the nixpkgs libraries: this gcc runs on the host, so host libraries are correct. Each library has its headers and its libraries in different outputs. `lib.getDev` gives the headers, `lib.getLib` the libraries. Step 8 uses the sources in the tree, because that gcc runs on the target. |
+   | `hardeningDisable = [ "format" ]` | The cc-wrapper adds `-Werror=format-security`, and `libcpp` fails with it. nixpkgs does the same for its own gcc. |
+   | `export CXX="g++ -std=gnu++17"` | See the comment in the file. With `-std` in `CXXFLAGS`, configure fails: `checking whether g++ is for C++11... no`, then `C++11 is required`. |
+   | `--with-newlib`, `--without-headers` | There is no libc: do not look for one. |
+   | `--enable-languages=c` | C only. Step 4 compiles glibc with this gcc, and glibc is C. |
+   | `--disable-shared`, `--disable-threads`, `--disable-lib...` | A shared libgcc, threads and the runtime libraries need a libc. LFS disables them in pass 1. |
+   | `--disable-nls`, `--disable-multilib` | As in LFS. |
+   | `--disable-bootstrap` | Not in LFS. A cross compiler does not bootstrap. The flag makes this explicit. |
 
-Read `gcc/configure --help`, or the GCC install documentation, for options
-that hardcode the path of the assembler and the linker.
+   This file does not use these LFS flags:
 
-</details>
+   | LFS flag | Why |
+   |---|---|
+   | `--with-sysroot=$LFS` | There is no sysroot yet. Step 6 adds the flag. |
+   | `--with-glibc-version=2.40` | No program links glibc in this step. Step 8 uses the flag and explains it. |
+   | `--enable-default-pie`, `--enable-default-ssp` | They change only the default compile flags. This book does not use them. |
+   | `--enable-languages=c,c++` | This file builds C only. |
 
-<details>
-<summary>Hint 4: the nixpkgs libraries</summary>
+2. Add the attribute to `lfs-toolchain/default.nix`:
 
-Headers and libraries are in different outputs of the same package. Look up
-`lib.getDev` and `lib.getLib`, and the gcc options `--with-gmp-include` and
-`--with-gmp-lib`.
+   ```nix
+   gccStage1 = callPackage ./gcc-stage1 { inherit triple binutils; };
+   ```
 
-</details>
+3. Make git track the new file:
+
+   ```console
+   $ git add lfs-toolchain/gcc-stage1
+   ```
+
+**How gcc finds binutils.** In LFS, binutils and gcc share `$LFS/tools`, so
+gcc finds `aarch64-lfs-linux-gnu-as` and `-ld` in its own prefix. Here,
+binutils is a separate store path. gcc must find it in two situations:
+
+- **During the build.** configure and the libgcc build look up the target
+  tools by name (`aarch64-lfs-linux-gnu-ar`, `-as`, and so on).
+  `nativeBuildInputs = [ binutils ]` is not sufficient. For each input,
+  stdenv adds only `<input>/bin` to `PATH` (`addToSearchPath _PATH` in
+  `pkgs/stdenv/generic/setup.sh`). Step 1 installs the tools in
+  `<input>/tools/bin`. The `PATH` line in `preConfigure` adds that directory.
+- **After the build.** You run `gcc -c` from `result-gcc1`, with no binutils
+  on your `PATH`. `--with-as` and `--with-ld` store the full paths in the
+  driver. The check `-print-prog-name=as` below shows them.
 
 **Build:**
 
@@ -114,123 +174,17 @@ $ $G1/$T-gcc /tmp/hello.c -o /tmp/hello           # FAILS: cannot find crt1.o ..
 ```
 
 The last two checks **must fail**. If they succeed, the compiler found a libc
-from the host, and the exercise is void.
+from the host, and the result is not valid.
 
 **If it fails:**
 
 - `-print-prog-name=as` prints only `as`: the installed driver does not know
-  your binutils. See hint 3.
-- `aarch64-lfs-linux-gnu-ar: command not found` during the build: see hints 1
-  and 2.
+  your binutils. Check `--with-as` and `--with-ld`.
+- `aarch64-lfs-linux-gnu-ar: command not found` during the build: check the
+  `PATH` line in `preConfigure`.
 - C23 errors in C files (`bool`, `true`, `false`): see step 1.
-- Errors about `format-security` in `libcpp`: add
-  `hardeningDisable = [ "format" ];`. nixpkgs does the same for its own gcc.
-- `no matching function for call to 'S2C(const char8_t [2])'` in `libcody`:
-  the host g++ 16 uses C++20 by default. Add `export CXX="g++ -std=gnu++17"`
-  to `preConfigure`.
-- `checking whether g++ is for C++11... no`, then `C++11 is required`: you put
-  `-std` in `CXXFLAGS`. The libcody check adds `-std=c++11` to `CXX`, and
-  `CXXFLAGS` comes after it. Put the flag in `CXX`.
 - gcc's configure accepts unknown `--with-*` and `--disable-*` options without
   a warning. A typo such as `--with-gmp-libs` has no effect. Compare your
   flags with `./configure --help`.
-- gmp, mpfr or mpc not found: `nix log` names the missing file. See hint 4.
-
-## Solution
-
-Read this only if you are stuck. Try the hints first.
-
-<details>
-<summary>Show the solution</summary>
-
-`lfs-toolchain/gcc-stage1/default.nix`:
-
-```nix
-{ lib, stdenv, fetchurl, gmp, mpfr, libmpc, isl, binutils, triple }:
-
-stdenv.mkDerivation rec {
-    pname = "lfs-gcc-stage1";
-    version = "14.2.0";
-
-    src = fetchurl {
-        url = "mirror://gnu/gcc/gcc-${version}/gcc-${version}.tar.xz";
-        hash = "sha256-p7Obxpy/niWCbFpgqyZHcAH3wI2FzsBLwOKcq+1vPMk=";
-    };
-
-    # The nixpkgs libraries, not the sources in the gcc tree: this gcc runs
-    # on the host, so host libraries are correct here.
-    buildInputs = [ gmp mpfr libmpc isl ];
-    hardeningDisable = [ "format" ];
-
-    dontAddPrefix = true;
-    preConfigure = ''
-        # During the build: configure and libgcc find the target tools by name.
-        export PATH=${binutils}/tools/bin:$PATH
-        # The host g++ 16 defaults to C++20, where u8"" literals are char8_t,
-        # and libcody fails. g++ 14 defaults to gnu++17. Not CXXFLAGS: it
-        # comes after the -std=c++11 that the libcody configure check adds.
-        export CXX="g++ -std=gnu++17"
-        mkdir -p build && cd build
-    '';
-    configureScript = "../configure";
-
-    configureFlags = [
-        "--target=${triple}"
-        "--prefix=${placeholder "out"}/tools"
-        # After the build: the driver keeps these paths, so gcc -c works
-        # without binutils on PATH.
-        "--with-as=${binutils}/tools/bin/${triple}-as"
-        "--with-ld=${binutils}/tools/bin/${triple}-ld"
-
-        "--with-gmp-include=${lib.getDev gmp}/include"
-        "--with-gmp-lib=${lib.getLib gmp}/lib"
-        "--with-mpfr-include=${lib.getDev mpfr}/include"
-        "--with-mpfr-lib=${lib.getLib mpfr}/lib"
-        "--with-mpc-include=${lib.getDev libmpc}/include"
-        "--with-mpc-lib=${lib.getLib libmpc}/lib"
-        "--with-isl-include=${lib.getDev isl}/include"
-        "--with-isl-lib=${lib.getLib isl}/lib"
-
-        # Dropped LFS flags:
-        #   --with-sysroot=$LFS          there is no sysroot yet; step 6 adds it
-        #   --with-glibc-version=2.40    no program links glibc here; step 8 needs it
-        #   --enable-default-pie, --enable-default-ssp
-        #                                default flags for the final programs;
-        #                                stage 1 builds only libgcc
-        #   --enable-languages=c,c++     C only: no libc, so no libstdc++
-        "--with-newlib"
-        "--without-headers"
-        "--enable-languages=c"
-        "--disable-nls"
-        "--disable-shared"
-        "--disable-multilib"
-        "--disable-threads"
-        "--disable-libatomic"
-        "--disable-libgomp"
-        "--disable-libquadmath"
-        "--disable-libssp"
-        "--disable-libvtv"
-        "--disable-libstdcxx"
-        "--disable-bootstrap"          # not in LFS: a cross compiler does not bootstrap
-    ];
-
-    meta = {
-        description = "stage-1 C compiler for ${triple}";
-        platforms = lib.platforms.linux;
-    };
-}
-```
-
-The line in `lfs-toolchain/default.nix`:
-
-```nix
-gccStage1 = callPackage ./gcc-stage1 { inherit triple binutils; };
-```
-
-| Problem | Solution |
-|---|---|
-| During the build | `preConfigure` puts `${binutils}/tools/bin` on `PATH`. stdenv adds only `${binutils}/bin`, which does not exist (hint 1). |
-| After the build | `--with-as` and `--with-ld` store the full paths in the driver (hint 3). |
-| gmp, mpfr, mpc, isl | `lib.getDev` gives the headers, `lib.getLib` gives the libraries (hint 4). |
-
-</details>
+- gmp, mpfr or mpc not found: `nix log` names the missing file. Check the
+  `lib.getDev` and `lib.getLib` flags.

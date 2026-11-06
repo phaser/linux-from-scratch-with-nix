@@ -34,38 +34,69 @@ From earlier steps: [the sandbox](appendix-nix-concepts.md#the-sandbox) (step 0)
 
 ---
 
-**Do:** write a derivation that meets these requirements.
+**Do:**
 
-1. The file is a function of `{ lib, stdenv, fetchurl }`.
-2. The source is Linux **6.12** from `cdn.kernel.org`.
-3. It runs the same two `make` commands as LFS.
-4. It removes every file that is not a header, as LFS does.
-5. The headers install to `$out/usr/include`.
+1. Write `lfs-toolchain/linux-headers/default.nix`:
 
-<details>
-<summary>Hint 1: there is no configure script</summary>
+   ```nix
+   { lib, stdenv, fetchurl }:
 
-The kernel has no `./configure`. Look up `dontConfigure`.
+   stdenv.mkDerivation rec {
+       pname = "lfs-linux-headers";
+       version = "6.12";
 
-</details>
+       src = fetchurl {
+           url = "http://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${version}.tar.xz";
+           hash = "sha256-saJWK+VuQq+z+EidTCp6xHKsIwmPHvHB5A2mAfVGJes=";
+       };
 
-<details>
-<summary>Hint 2: your own phases</summary>
+       dontConfigure = true;
 
-You replace `buildPhase` and `installPhase` with your own commands. A custom
-phase must call `runHook preBuild` and `runHook postBuild` (or `preInstall` and
-`postInstall`), so that hooks still run.
+       buildPhase = ''
+           runHook preBuild
+           make mrproper
+           make headers
+           runHook postBuild
+       '';
 
-</details>
+       installPhase = ''
+           runHook preInstall
+           find usr/include -type f ! -name '*.h' -delete
+           mkdir -p $out/usr/include
+           cp -r usr/include/. $out/usr/include
+           runHook postInstall
+       '';
 
-<details>
-<summary>Hint 3: the architecture</summary>
+       meta = {
+           description = "Linux ${version} userspace headers";
+           platforms = lib.platforms.linux;
+       };
+   }
+   ```
 
-The kernel build reads the architecture from `uname -m` when you do not set
-`ARCH`. On aarch64, that gives `arm64`. Think about whether you want to depend on
-that, or set it.
+   | Line | Why |
+   |---|---|
+   | `version = "6.12"` | The kernel of LFS 12.2. Step 14 builds the kernel from the same source. |
+   | `dontConfigure = true` | The kernel has no `./configure`. |
+   | `buildPhase` | The two `make` commands of LFS. |
+   | `installPhase` | LFS removes each file that is not a header, then copies `usr/include`. The headers go to `$out/usr/include`. |
+   | `runHook` lines | A phase that you write must call its hooks, so that `preBuild`, `postInstall` and the others still run. |
 
-</details>
+   The file does not set `ARCH`. Without `ARCH`, the kernel build reads the
+   architecture from `uname -m`. On aarch64, that gives `arm64`. To make the
+   build independent of the build machine, write `make ARCH=arm64 headers`.
+
+2. Add the attribute to `lfs-toolchain/default.nix`:
+
+   ```nix
+   headers = callPackage ./linux-headers { };
+   ```
+
+3. Make git track the new file:
+
+   ```console
+   $ git add lfs-toolchain/linux-headers
+   ```
 
 **Build:**
 
@@ -99,66 +130,3 @@ $ nix hash convert --hash-algo sha256 --to sri <hex-from-the-line-above>
 **If it fails:** a tool is missing from the sandbox. Add it to
 `nativeBuildInputs` (for example `perl`, `bison` or `flex`).
 
-## Solution
-
-Read this only if you are stuck. Try the hints first.
-
-<details>
-<summary>Show the solution</summary>
-
-`lfs-toolchain/linux-headers/default.nix`:
-
-```nix
-{ lib, stdenv, fetchurl }:
-
-stdenv.mkDerivation rec {
-    pname = "lfs-linux-headers";
-    version = "6.12";
-
-    src = fetchurl {
-        url = "http://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${version}.tar.xz";
-        hash = "sha256-saJWK+VuQq+z+EidTCp6xHKsIwmPHvHB5A2mAfVGJes=";
-    };
-
-    dontConfigure = true;
-
-    buildPhase = ''
-        runHook preBuild
-        make mrproper
-        make headers
-        runHook postBuild
-    '';
-
-    installPhase = ''
-        runHook preInstall
-        find usr/include -type f ! -name '*.h' -delete
-        mkdir -p $out/usr/include
-        cp -r usr/include/. $out/usr/include
-        runHook postInstall
-    '';
-
-    meta = {
-        description = "Linux ${version} userspace headers";
-        platforms = lib.platforms.linux;
-    };
-}
-```
-
-The line in `lfs-toolchain/default.nix`:
-
-```nix
-headers = callPackage ./linux-headers { };
-```
-
-| Part | Why |
-|---|---|
-| `dontConfigure = true;` | The kernel has no `./configure` (hint 1). |
-| `make mrproper`, `make headers` | The two commands of LFS. |
-| `find ... -delete` | LFS removes each file that is not a header. |
-| `runHook` lines | The hooks of each phase still run (hint 2). |
-
-This solution does not set `ARCH`. The build machine is aarch64, so the kernel
-build gets `arm64` from `uname -m` (hint 3). `make ARCH=arm64 headers` also
-works, and does not depend on the build machine.
-
-</details>
