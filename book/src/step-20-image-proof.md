@@ -6,27 +6,40 @@ From earlier steps: [references and closures](appendix-nix-concepts.md#reference
 
 ---
 
-Run these checks in your Linux environment of step 0, not in the guest.
+Run these checks where you run `nix build`: in the VM, the container or the
+machine of step 0. Do not run them in the QEMU guest. The guest has no Nix,
+and it has no `result-*` links. To leave the guest, run `poweroff`.
 
-```console
-# 1. The closure of everything in the image: only your packages and their wrappers.
-$ nix path-info -r ./result-sysenv ./result-etc | grep -v -E -- '-lfs-final-|-(gcc|bintools)-wrapper-|-lfs-stdenv'
-                                                   # no output, or only setup-hook files
+1. The closure of everything in the image has only your packages and their
+   wrappers:
 
-# 2. Exactly one glibc, and it is yours.
-$ nix path-info -r ./result-sysenv | grep -E -- '-glibc-[0-9]'
-                                                   # only ...-lfs-final-glibc-2.40
+   ```console
+   $ nix path-info -r ./result-sysenv ./result-etc | grep -v -E -- '-lfs-final-|-(gcc|bintools)-wrapper-|-lfs-stdenv'
+                                                      # no output, or only setup-hook files
+   ```
 
-# 3. Every ELF file in the image was built by your gcc.
-$ nix path-info -r ./result-sysenv \
-    | xargs -I{} find {} -type f \
-    | xargs $B/$T-readelf -p .comment 2>/dev/null \
-    | grep -o 'GCC: ([^)]*) [0-9.]*' | sort | uniq -c
-                                                   # only "GCC: (GNU) 14.2.0" (16.2.0 would be nixpkgs)
+2. The image has exactly one glibc, and it is yours:
 
-# 4. The kernel too.
-$ grep CONFIG_CC_VERSION_TEXT result-kernel/config # 14.2.0
-```
+   ```console
+   $ nix path-info -r ./result-sysenv | grep -E -- '-glibc-[0-9]'
+                                                      # only ...-lfs-final-glibc-2.40
+   ```
+
+3. Your gcc built every ELF file in the image:
+
+   ```console
+   $ nix path-info -r ./result-sysenv \
+       | xargs -I{} find {} -type f \
+       | xargs $B/$T-readelf -p .comment 2>/dev/null \
+       | grep -o 'GCC: ([^)]*) [0-9.]*' | sort | uniq -c
+                                                      # only "GCC: (GNU) 14.2.0" (16.2.0 would be nixpkgs)
+   ```
+
+4. Your gcc also built the kernel:
+
+   ```console
+   $ grep CONFIG_CC_VERSION_TEXT result-kernel/config # 14.2.0
+   ```
 
 The limits of this proof: the image *builders* (mkfs, cpio, gzip) and QEMU come
 from nixpkgs. They shape the bytes of the image file but add no program to it.
