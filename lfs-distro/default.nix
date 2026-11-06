@@ -9,4 +9,10 @@ rec {
       pname = "lfs-final-busybox";
       depsBuildBuild = [ ];
     };
+    sysenv = pkgs.callPackage ./sysenv {
+        inherit final busybox;
+        cc = lfsStdenvFinal.cc;
+    };
+    etc = pkgs.callPackage ./etc { };
+    init = pkgs.callPackage ./init { inherit final; };
 }
