@@ -64,7 +64,7 @@ The last check is a trap. Nix finds references by scanning for store hashes.
 The archive is compressed, so Nix finds none. The closure check of the image
 must run on its *inputs* (step 20), not on the archive.
 
-**Boot:**
+**Boot (0a, Tart VM with KVM):**
 
 ```console
 $ nix shell nixpkgs#qemu
@@ -73,7 +73,17 @@ $ qemu-system-aarch64 -M virt -accel kvm -cpu host -m 1024 -nographic \
     -append "console=ttyAMA0 rdinit=/init"
 ```
 
-Without `/dev/kvm`, use `-accel tcg -cpu max`. To leave QEMU: `Ctrl-a`, then `x`.
+**Boot (0b, Docker container, or no `/dev/kvm`):** QEMU emulates the CPU
+(TCG). This is slower, but it works.
+
+```console
+$ nix shell nixpkgs#qemu
+$ qemu-system-aarch64 -M virt -accel tcg -cpu max -m 1024 -nographic \
+    -kernel result-kernel/Image -initrd result-initrd/initrd \
+    -append "console=ttyAMA0 rdinit=/init"
+```
+
+To leave QEMU: `Ctrl-a`, then `x`.
 
 **Verify inside the guest:**
 
